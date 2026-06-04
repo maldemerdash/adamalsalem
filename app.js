@@ -215,10 +215,10 @@ function getWhatsappMessage(booking) {
   return MESSAGES.whatsappConfirmation(booking);
 }
 
-function openWhatsappConfirmation(booking) {
+function getWhatsappUrl(booking) {
   const phone = toWhatsappPhone(booking.phone);
   const message = encodeURIComponent(getWhatsappMessage(booking));
-  window.open(`https://wa.me/${phone}?text=${message}`, "_blank", "noopener");
+  return `https://wa.me/${phone}?text=${message}`;
 }
 
 async function loadAdminSettings() {
@@ -425,6 +425,17 @@ function appendButton(parent, className, text, onClick) {
   return button;
 }
 
+function appendLinkButton(parent, className, text, href) {
+  const link = document.createElement("a");
+  link.className = className;
+  link.href = href;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = text;
+  parent.append(link);
+  return link;
+}
+
 function appendCell(row, value) {
   const cell = document.createElement("td");
   cell.textContent = value;
@@ -498,7 +509,7 @@ function renderBookingsTable() {
     if (!booking.confirmed) {
       appendButton(actions, "confirm-button compact-button", "تأكيد الحجز", () => confirmBooking(booking.id));
     } else {
-      appendButton(actions, "whatsapp-button compact-button", "إرسال واتساب", () => openWhatsappConfirmation(booking));
+      appendLinkButton(actions, "whatsapp-button compact-button", "إرسال واتساب", getWhatsappUrl(booking));
       if (!booking.attended) {
         appendButton(actions, "attendance-button compact-button", "تم الحضور", () => markAttended(booking.id));
       }
