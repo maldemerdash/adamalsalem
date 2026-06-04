@@ -1,8 +1,12 @@
 const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "123456";
-const SCHEDULE_VERSION = "weekly-v3";
+const DEFAULT_ADMIN_USERNAME = "admin";
+const DEFAULT_ADMIN_PASSWORD = "123456";
+const SCHEDULE_VERSION = "weekly-v4";
+const START_HOUR = 17;
+const END_HOUR = 21;
+const PAYMENT_HOLD_MINUTES = 15;
+const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
 const WORK_DAYS = [
   { offset: 0, name: "الأحد" },
   { offset: 1, name: "الإثنين" },
@@ -10,21 +14,20 @@ const WORK_DAYS = [
   { offset: 3, name: "الأربعاء" },
   { offset: 4, name: "الخميس" }
 ];
-const START_HOUR = 17;
-const END_HOUR = 21;
-const PAYMENT_HOLD_MINUTES = 15;
 const MESSAGES = {
   paymentInstructions:
-    "لتأكيد الحجز يرجى تحويل مبلغ 50 ريال على الحساب البنكي التالي: SA56800006636080102363254 وبعد التحويل يتم إرسال الإيصال على الواتس رقم 0509966390. تنبيه: في حال لم يتم التحويل وإرسال الإيصال خلال ربع ساعة سيتم إلغاء الحجز.",
+    "لتأكيد الحجز يرجى تحويل مبلغ 50 ريال\nعلى الحساب البنكي التالي:\nSA4480000456608016164286\nوبعد التحويل يتم إرسال الإيصال على الواتس رقم 0555707854",
+  paymentWarning:
+    "تنبيه: في حال لم يتم التحويل وإرسال الإيصال خلال 15 دقيقة سيتم إلغاء الحجز تلقائيا",
   whatsappConfirmation(booking) {
     return [
       `مرحبًا ${booking.name}`,
       "تم تأكيد موعدك بنجاح.",
-      `الموعد: ${slotLabel(booking.slot)}`,
-      `المدينة: ${booking.city || "غير محدد"}`,
-      "الموقع: https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7",
-      "تنبيه: لابد من الحضور في وقت الموعد، وفي حال التأخر 5 دقائق يتم إلغاء الموعد دون استرجاع المبلغ.",
-      "نسعد بخدمتك."
+      `اليوم: ${booking.slot.day}`,
+      `التاريخ: ${booking.slot.date}`,
+      `الساعة: ${formatTime(booking.slot.time)}`,
+      `الموقع: ${MAP_URL}`,
+      "تنبيه: لابد من الحضور قبل الموعد بخمس دقائق وفي حال التأخر بعد الموعد بخمس دقائق يتم إلغاء الموعد دون استرجاع المبلغ شاكرين لكم تعاونكم."
     ].join("\n");
   }
 };
@@ -32,12 +35,16 @@ const MESSAGES = {
 let slots = [];
 let bookings = [];
 let deletedSlots = [];
+let adminCredentials = {
+  username: DEFAULT_ADMIN_USERNAME,
+  password: DEFAULT_ADMIN_PASSWORD
+};
 
-const tabs = document.querySelectorAll(".tab-button");
-const panels = document.querySelectorAll(".panel");
+const bookingPanel = document.querySelector("#bookingPanel");
+const adminPanel = document.querySelector("#adminPanel");
 const bookingForm = document.querySelector("#bookingForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
-const slotForm = document.querySelector("#slotForm");
+const credentialsForm = document.querySelector("#credentialsForm");
 const slotSelect = document.querySelector("#slotSelect");
 const cityInput = document.querySelector("#cityInput");
 const bookingMessage = document.querySelector("#bookingMessage");
@@ -45,7 +52,11 @@ const loginMessage = document.querySelector("#loginMessage");
 const adminMessage = document.querySelector("#adminMessage");
 const adminLoginView = document.querySelector("#adminLoginView");
 const adminDashboard = document.querySelector("#adminDashboard");
+const adminLoginButton = document.querySelector("#adminLoginButton");
+const backToBookingButton = document.querySelector("#backToBookingButton");
 const logoutButton = document.querySelector("#logoutButton");
+const showCredentialsButton = document.querySelector("#showCredentialsButton");
+const regenerateSlotsButton = document.querySelector("#regenerateSlotsButton");
 const availableSlots = document.querySelector("#availableSlots");
 const reservedSlots = document.querySelector("#reservedSlots");
 const availableCount = document.querySelector("#availableCount");
@@ -86,10 +97,6 @@ function pad(value) {
   return String(value).padStart(2, "0");
 }
 
-function toDateKey(date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 function createId() {
   if (window.crypto && typeof window.crypto.randomUUID === "function") {
     return window.crypto.randomUUID();
@@ -98,6 +105,10 @@ function createId() {
   return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (value) => {
     return (Number(value) ^ Math.random() * 16 >> Number(value) / 4).toString(16);
   });
+}
+
+function toDateKey(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function getWeekStart(date = new Date()) {
@@ -141,12 +152,15 @@ function buildWeeklySlots(weekStart) {
   return generated;
 }
 
-function slotLabel(slot) {
-  return `${slot.day} - ${formatDate(slot.date)} - ${formatTime(slot.time)}`;
+function getManagedWeekStarts() {
+  const currentWeekStart = getWeekStart();
+  const nextWeekStart = new Date(currentWeekStart);
+  nextWeekStart.setDate(currentWeekStart.getDate() + 7);
+  return [currentWeekStart, nextWeekStart];
 }
 
 function formatDate(value) {
-  return new Intl.DateTimeFormat("ar-SA", {
+  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
@@ -193,6 +207,10 @@ function getBookingStatusText(booking) {
   return `بانتظار التحويل حتى ${formatTimeFromDate(expiresAt)}`;
 }
 
+function slotLabel(slot) {
+  return `${slot.day} - ${formatDate(slot.date)} - ${formatTime(slot.time)}`;
+}
+
 function getWhatsappMessage(booking) {
   return MESSAGES.whatsappConfirmation(booking);
 }
@@ -201,6 +219,27 @@ function openWhatsappConfirmation(booking) {
   const phone = toWhatsappPhone(booking.phone);
   const message = encodeURIComponent(getWhatsappMessage(booking));
   window.open(`https://wa.me/${phone}?text=${message}`, "_blank", "noopener");
+}
+
+async function loadAdminSettings() {
+  try {
+    const rows = await api("appointment_settings?id=eq.admin&select=value");
+    const value = rows?.[0]?.value;
+    if (value?.username && value?.password) {
+      adminCredentials = value;
+    }
+  } catch (error) {
+    console.warn("Admin settings table is not ready yet.", error);
+  }
+}
+
+async function saveAdminSettings(username, password) {
+  adminCredentials = { username, password };
+  await api("appointment_settings?on_conflict=id", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: [{ id: "admin", value: adminCredentials }]
+  });
 }
 
 async function loadData() {
@@ -227,17 +266,32 @@ async function cleanupExpiredPendingBookings() {
   }
 }
 
-async function ensureWeeklySlots() {
-  const currentWeekStart = getWeekStart();
-  const nextWeekStart = new Date(currentWeekStart);
-  nextWeekStart.setDate(currentWeekStart.getDate() + 7);
-  const deletedIds = new Set(deletedSlots.map((item) => item.slot_id));
-  const existingIds = new Set(slots.map((slot) => slot.id));
-  const generatedSlots = [currentWeekStart, nextWeekStart]
-    .flatMap((weekStart) => buildWeeklySlots(weekStart))
-    .filter((slot) => !existingIds.has(slot.id) && !deletedIds.has(slot.id));
+async function insertMissingWeeklySlots({ restoreDeleted = false } = {}) {
+  const generatedIds = new Set(getManagedWeekStarts().flatMap((weekStart) => {
+    return buildWeeklySlots(weekStart).map((slot) => slot.id);
+  }));
 
-  if (!generatedSlots.length) return;
+  if (restoreDeleted) {
+    const deletedToRestore = deletedSlots
+      .map((item) => item.slot_id)
+      .filter((slotId) => generatedIds.has(slotId));
+
+    for (const slotId of deletedToRestore) {
+      await api(`appointment_deleted_slots?slot_id=eq.${encodeURIComponent(slotId)}`, { method: "DELETE" });
+    }
+    await loadData();
+  }
+
+  const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
+  const existingIds = new Set(slots.map((slot) => slot.id));
+  const deletedIds = new Set(deletedSlots.map((item) => item.slot_id));
+  const generatedSlots = getManagedWeekStarts()
+    .flatMap((weekStart) => buildWeeklySlots(weekStart))
+    .filter((slot) => !existingIds.has(slot.id))
+    .filter((slot) => !bookedIds.has(slot.id))
+    .filter((slot) => restoreDeleted || !deletedIds.has(slot.id));
+
+  if (!generatedSlots.length) return 0;
 
   await api("appointment_slots?on_conflict=id", {
     method: "POST",
@@ -245,6 +299,7 @@ async function ensureWeeklySlots() {
     body: generatedSlots
   });
   await loadData();
+  return generatedSlots.length;
 }
 
 function getReservedSlots() {
@@ -273,15 +328,57 @@ function hasPhoneBookingOnDate(phone, date) {
   });
 }
 
+function groupSlotsByDate(rows) {
+  return rows.reduce((groups, slot) => {
+    const key = slot.date;
+    if (!groups[key]) {
+      groups[key] = { day: slot.day, date: slot.date, slots: [] };
+    }
+    groups[key].slots.push(slot);
+    return groups;
+  }, {});
+}
+
 function showMessage(element, text, type) {
+  element.innerHTML = "";
   element.textContent = text;
   element.className = `message ${type || ""}`.trim();
+}
+
+function showPaymentInstructions() {
+  bookingMessage.innerHTML = "";
+  bookingMessage.className = "message success payment-message";
+
+  const text = document.createElement("div");
+  text.className = "payment-text";
+  MESSAGES.paymentInstructions.split("\n").forEach((line) => {
+    const p = document.createElement("p");
+    p.textContent = line;
+    text.append(p);
+  });
+
+  const qr = document.createElement("img");
+  qr.className = "bank-qr";
+  qr.src = "bank-qr.jpeg";
+  qr.alt = "صورة الحساب البنكي";
+
+  const warning = document.createElement("p");
+  warning.className = "payment-warning";
+  warning.textContent = MESSAGES.paymentWarning;
+
+  bookingMessage.append(text, qr, warning);
 }
 
 function setBusy(form, isBusy) {
   [...form.querySelectorAll("button, input, select")].forEach((element) => {
     element.disabled = isBusy;
   });
+}
+
+function showPanel(name) {
+  const isAdmin = name === "admin";
+  bookingPanel.classList.toggle("active", !isAdmin);
+  adminPanel.classList.toggle("active", isAdmin);
 }
 
 function renderAdminAccess() {
@@ -318,102 +415,110 @@ function renderBookingOptions() {
   });
 }
 
-function appendText(className, text, parent) {
-  const element = document.createElement("div");
-  element.className = className;
-  element.textContent = text;
-  parent.append(element);
-  return element;
+function appendButton(parent, className, text, onClick) {
+  const button = document.createElement("button");
+  button.className = className;
+  button.type = "button";
+  button.textContent = text;
+  button.addEventListener("click", onClick);
+  parent.append(button);
+  return button;
 }
 
-function renderSlotList(container, rows, emptyText, options = {}) {
-  container.innerHTML = "";
+function appendCell(row, value) {
+  const cell = document.createElement("td");
+  cell.textContent = value;
+  row.append(cell);
+  return cell;
+}
 
-  if (!rows.length) {
+function renderAvailableSlots() {
+  const available = getAvailableSlots();
+  availableCount.textContent = `${available.length} موعد`;
+  availableSlots.innerHTML = "";
+
+  if (!available.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = emptyText;
-    container.append(empty);
+    empty.textContent = "لا توجد مواعيد متاحة.";
+    availableSlots.append(empty);
     return;
   }
 
-  rows.forEach((item) => {
-    const slot = item.slot || item;
-    const row = document.createElement("article");
-    row.className = `slot-item ${options.reserved ? "reserved" : ""}`.trim();
+  Object.values(groupSlotsByDate(available)).forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "day-group";
 
-    const content = document.createElement("div");
-    appendText("slot-title", slot.day, content);
-    appendText("slot-meta", `${formatDate(slot.date)} - ${formatTime(slot.time)}`, content);
+    const title = document.createElement("div");
+    title.className = "day-group-title";
+    title.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
 
-    if (options.reserved) {
-      appendText("slot-customer", `${item.name} | ${item.phone} | ${item.city || "غير محدد"}`, content);
-      appendText("slot-status", getBookingStatusText(item), content);
-    }
+    const times = document.createElement("div");
+    times.className = "time-grid";
 
-    row.append(content);
+    group.slots.forEach((slot) => {
+      const item = document.createElement("div");
+      item.className = "time-item";
+      const time = document.createElement("span");
+      time.textContent = formatTime(slot.time);
+      appendButton(item, "danger-button compact-button", "حذف", () => deleteSlot(slot.id));
+      item.prepend(time);
+      times.append(item);
+    });
 
-    if (options.removable) {
-      const button = document.createElement("button");
-      button.className = "danger-button";
-      button.type = "button";
-      button.textContent = "حذف";
-      button.addEventListener("click", () => deleteSlot(slot.id));
-      row.append(button);
-    }
-
-    if (options.confirmation && !item.confirmed) {
-      const button = document.createElement("button");
-      button.className = "confirm-button";
-      button.type = "button";
-      button.textContent = "تأكيد الموعد";
-      button.addEventListener("click", () => confirmBooking(item.id));
-      row.append(button);
-    }
-
-    if (options.attendance && item.confirmed && !item.attended) {
-      const whatsappButton = document.createElement("button");
-      whatsappButton.className = "whatsapp-button";
-      whatsappButton.type = "button";
-      whatsappButton.textContent = "إرسال واتساب";
-      whatsappButton.addEventListener("click", () => openWhatsappConfirmation(item));
-      row.append(whatsappButton);
-
-      const button = document.createElement("button");
-      button.className = "attendance-button";
-      button.type = "button";
-      button.textContent = "تم الحضور";
-      button.addEventListener("click", () => markAttended(item.id));
-      row.append(button);
-    }
-
-    container.append(row);
+    section.append(title, times);
+    availableSlots.append(section);
   });
 }
 
-function renderAdminLists() {
-  const available = getAvailableSlots();
+function renderBookingsTable() {
   const reserved = getReservedSlots();
-  availableCount.textContent = `${available.length} موعد`;
   reservedCount.textContent = `${reserved.length} موعد`;
-  renderSlotList(availableSlots, available, "لا توجد مواعيد متاحة.", { removable: true });
-  renderSlotList(reservedSlots, reserved, "لا توجد مواعيد محجوزة.", {
-    reserved: true,
-    confirmation: true,
-    attendance: true
+  reservedSlots.innerHTML = "";
+
+  if (!reserved.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = '<td colspan="6" class="empty-state">لا توجد مواعيد محجوزة.</td>';
+    reservedSlots.append(row);
+    return;
+  }
+
+  reserved.forEach((booking) => {
+    const row = document.createElement("tr");
+    appendCell(row, booking.name);
+    appendCell(row, booking.phone);
+    appendCell(row, booking.city || "غير محدد");
+    appendCell(row, `${booking.slot.day}\n${formatDate(booking.slot.date)}\n${formatTime(booking.slot.time)}`);
+    appendCell(row, getBookingStatusText(booking));
+    const actionsCell = document.createElement("td");
+    const actions = document.createElement("div");
+    actions.className = "table-actions";
+    actionsCell.append(actions);
+    row.append(actionsCell);
+    if (!booking.confirmed) {
+      appendButton(actions, "confirm-button compact-button", "تأكيد الحجز", () => confirmBooking(booking.id));
+    } else {
+      appendButton(actions, "whatsapp-button compact-button", "إرسال واتساب", () => openWhatsappConfirmation(booking));
+      if (!booking.attended) {
+        appendButton(actions, "attendance-button compact-button", "تم الحضور", () => markAttended(booking.id));
+      }
+    }
+    appendButton(actions, "danger-button compact-button", "إلغاء الحجز", () => cancelBooking(booking.id));
+    reservedSlots.append(row);
   });
 }
 
 function renderAll() {
   renderAdminAccess();
   renderBookingOptions();
-  renderAdminLists();
+  renderAvailableSlots();
+  renderBookingsTable();
 }
 
 async function refreshAll() {
   await loadData();
   await cleanupExpiredPendingBookings();
-  await ensureWeeklySlots();
+  await insertMissingWeeklySlots();
   renderAll();
 }
 
@@ -432,6 +537,12 @@ async function deleteSlot(slotId) {
   });
   await api(`appointment_slots?id=eq.${encodeURIComponent(slotId)}`, { method: "DELETE" });
   showMessage(adminMessage, "تم حذف الموعد المحدد.", "success");
+  await refreshAll();
+}
+
+async function regenerateWeeklySlots() {
+  const count = await insertMissingWeeklySlots({ restoreDeleted: true });
+  showMessage(adminMessage, count ? `تم توليد ${count} موعد متاح.` : "لا توجد مواعيد ناقصة للتوليد.", "success");
   await refreshAll();
 }
 
@@ -462,20 +573,22 @@ async function markAttended(bookingId) {
   await refreshAll();
 }
 
-tabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
-    const target = tab.dataset.tab;
-    tabs.forEach((item) => item.classList.toggle("active", item === tab));
-    panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === target));
-  });
-});
+async function cancelBooking(bookingId) {
+  await api(`appointment_bookings?id=eq.${bookingId}`, { method: "DELETE" });
+  showMessage(adminMessage, "تم إلغاء الحجز وإرجاع الموعد لقائمة المتاح.", "success");
+  await refreshAll();
+}
+
+adminLoginButton.addEventListener("click", () => showPanel("admin"));
+backToBookingButton.addEventListener("click", () => showPanel("booking"));
+regenerateSlotsButton.addEventListener("click", regenerateWeeklySlots);
 
 adminLoginForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const username = document.querySelector("#adminUsername").value.trim();
   const password = document.querySelector("#adminPassword").value;
 
-  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+  if (username !== adminCredentials.username || password !== adminCredentials.password) {
     showMessage(loginMessage, "اسم المستخدم أو كلمة المرور غير صحيحة.", "error");
     return;
   }
@@ -487,8 +600,32 @@ adminLoginForm.addEventListener("submit", (event) => {
   renderAll();
 });
 
+showCredentialsButton.addEventListener("click", () => {
+  credentialsForm.classList.toggle("hidden");
+  document.querySelector("#newAdminUsername").value = adminCredentials.username;
+  document.querySelector("#newAdminPassword").value = adminCredentials.password;
+});
+
+credentialsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setBusy(credentialsForm, true);
+
+  try {
+    const username = document.querySelector("#newAdminUsername").value.trim();
+    const password = document.querySelector("#newAdminPassword").value;
+    await saveAdminSettings(username, password);
+    credentialsForm.classList.add("hidden");
+    showMessage(adminMessage, "تم حفظ اسم المستخدم وكلمة المرور.", "success");
+  } catch (error) {
+    showMessage(adminMessage, `تعذر حفظ بيانات الدخول: ${error.message}`, "error");
+  } finally {
+    setBusy(credentialsForm, false);
+  }
+});
+
 logoutButton.addEventListener("click", () => {
   adminSession.isLoggedIn = false;
+  credentialsForm.classList.add("hidden");
   showMessage(adminMessage, "", "");
   renderAll();
 });
@@ -537,56 +674,23 @@ bookingForm.addEventListener("submit", async (event) => {
 
     bookingForm.reset();
     cityInput.value = "حائل";
-    showMessage(bookingMessage, MESSAGES.paymentInstructions, "success");
+    showPaymentInstructions();
     await refreshAll();
   } catch (error) {
     showMessage(bookingMessage, `تعذر حفظ الحجز: ${error.message}`, "error");
-    console.error(error);
   } finally {
     setBusy(bookingForm, false);
-  }
-});
-
-slotForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  setBusy(slotForm, true);
-
-  try {
-    await refreshAll();
-    const day = document.querySelector("#dayInput").value;
-    const date = document.querySelector("#dateInput").value;
-    const time = document.querySelector("#timeInput").value;
-    const id = `${date}T${time}`;
-
-    if (slots.some((slot) => slot.id === id)) {
-      showMessage(adminMessage, "هذا الموعد مضاف بالفعل.", "error");
-      return;
-    }
-
-    await api("appointment_deleted_slots?slot_id=eq." + encodeURIComponent(id), { method: "DELETE" });
-    await api("appointment_slots", {
-      method: "POST",
-      headers: { Prefer: "return=minimal" },
-      body: [{ id, day, date, time, source: "manual", schedule_version: SCHEDULE_VERSION }]
-    });
-    slotForm.reset();
-    showMessage(adminMessage, "تمت إضافة الموعد المتاح.", "success");
-    await refreshAll();
-  } catch (error) {
-    showMessage(adminMessage, "تعذر إضافة الموعد. تأكد من إعداد Supabase.", "error");
-    console.error(error);
-  } finally {
-    setBusy(slotForm, false);
   }
 });
 
 async function boot() {
   try {
     showMessage(bookingMessage, "جاري تحميل المواعيد...", "success");
+    await loadAdminSettings();
     await refreshAll();
     showMessage(bookingMessage, "", "");
   } catch (error) {
-    showMessage(bookingMessage, "لم يتم الاتصال بقاعدة البيانات. شغّل ملف إعداد Supabase أولًا.", "error");
+    showMessage(bookingMessage, "لم يتم الاتصال بقاعدة البيانات. شغّل ملف إعداد Supabase المحدث أولًا.", "error");
     console.error(error);
   }
 }
