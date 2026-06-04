@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>حجز المواعيد</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">نظام المواعيد</p>
+          <h1>حجز المواعيد</h1>
+        </div>
+        <div class="service-hours">
+          <span>الأحد - الخميس</span>
+          <strong>5:00 - 9:00 مساءً</strong>
+        </div>
+      </header>
+
+      <section class="app-card" aria-label="نظام حجز المواعيد">
+        <nav class="tabs" aria-label="التنقل بين الصفحات">
+          <button class="tab-button active" type="button" data-tab="booking" aria-controls="bookingPanel">
+            حجز موعد
+          </button>
+          <button class="tab-button" type="button" data-tab="admin" aria-controls="adminPanel">
+            صفحة الأدمن
+          </button>
+        </nav>
+
+        <section id="bookingPanel" class="panel active" data-panel="booking">
+          <div class="content-grid">
+            <aside class="info-panel">
+              <p class="section-kicker">للمستخدم</p>
+              <h2>اختر الموعد المناسب</h2>
+              <p>
+                تظهر لك المواعيد المتاحة فقط. بعد إتمام الحجز يتم إخفاء الموعد ولا يمكن حجزه من شخص آخر.
+              </p>
+              <div class="mini-schedule">
+                <span>مدة الموعد</span>
+                <strong>30 دقيقة</strong>
+              </div>
+            </aside>
+
+            <form id="bookingForm" class="form-grid">
+              <label>
+                <span>الاسم</span>
+                <input id="nameInput" type="text" autocomplete="name" required placeholder="مثال: أحمد محمد" />
+              </label>
+
+              <label>
+                <span>رقم الجوال</span>
+                <input id="phoneInput" type="tel" autocomplete="tel" required placeholder="05xxxxxxxx" />
+              </label>
+
+              <label>
+                <span>المدينة</span>
+                <select id="cityInput" required>
+                  <option>الرياض</option>
+                  <option>مكة المكرمة</option>
+                  <option>المدينة المنورة</option>
+                  <option>القصيم</option>
+                  <option>المنطقة الشرقية</option>
+                  <option>عسير</option>
+                  <option>تبوك</option>
+                  <option selected>حائل</option>
+                  <option>الحدود الشمالية</option>
+                  <option>جازان</option>
+                  <option>نجران</option>
+                  <option>الباحة</option>
+                  <option>الجوف</option>
+                </select>
+              </label>
+
+              <label>
+                <span>الموعد المتاح</span>
+                <select id="slotSelect" required></select>
+              </label>
+
+              <button class="primary-action" type="submit">تأكيد الحجز</button>
+              <div id="bookingMessage" class="message" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+        </section>
+
+        <section id="adminPanel" class="panel" data-panel="admin">
+          <div id="adminLoginView" class="admin-login">
+            <div class="login-copy">
+              <p class="section-kicker">للأدمن</p>
+              <h2>تسجيل الدخول</h2>
+              <p>ادخل بيانات الدخول لإدارة المواعيد المتاحة والمحجوزة.</p>
+            </div>
+
+            <form id="adminLoginForm" class="form-grid login-grid">
+              <label>
+                <span>اسم المستخدم</span>
+                <input id="adminUsername" type="text" autocomplete="username" required />
+              </label>
+
+              <label>
+                <span>كلمة المرور</span>
+                <input id="adminPassword" type="password" autocomplete="current-password" required />
+              </label>
+
+              <button class="primary-action" type="submit">دخول</button>
+              <div id="loginMessage" class="message" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+
+          <div id="adminDashboard" class="hidden">
+            <div class="admin-head">
+              <div>
+                <p class="section-kicker">إدارة المواعيد</p>
+                <h2>جدول الأسبوع</h2>
+              </div>
+              <button id="logoutButton" class="outline-action" type="button">خروج</button>
+            </div>
+
+            <div class="auto-note">
+              يتم إنشاء مواعيد الأسبوع تلقائيًا من الأحد إلى الخميس، ويجهز النظام الأسبوع القادم حتى لا تظهر القائمة ناقصة في نهاية الأسبوع.
+            </div>
+
+            <form id="slotForm" class="form-grid admin-grid">
+              <label>
+                <span>اليوم</span>
+                <select id="dayInput" required>
+                  <option value="">اختر اليوم</option>
+                  <option>الأحد</option>
+                  <option>الإثنين</option>
+                  <option>الثلاثاء</option>
+                  <option>الأربعاء</option>
+                  <option>الخميس</option>
+                  <option>الجمعة</option>
+                  <option>السبت</option>
+                </select>
+              </label>
+
+              <label>
+                <span>التاريخ</span>
+                <input id="dateInput" type="date" required />
+              </label>
+
+              <label>
+                <span>الساعة</span>
+                <input id="timeInput" type="time" required />
+              </label>
+
+              <button class="secondary-action" type="submit">إضافة موعد</button>
+            </form>
+
+            <div id="adminMessage" class="message" role="status" aria-live="polite"></div>
+
+            <div class="stats-grid">
+              <div class="stat-box">
+                <span>المتاح</span>
+                <strong id="availableCount">0 موعد</strong>
+              </div>
+              <div class="stat-box">
+                <span>المحجوز</span>
+                <strong id="reservedCount">0 موعد</strong>
+              </div>
+            </div>
+
+            <div class="slots-layout">
+              <div class="list-panel">
+                <div class="list-head">
+                  <h3>المواعيد المتاحة</h3>
+                  <p>يمكن حذف أي موعد غير محجوز.</p>
+                </div>
+                <div id="availableSlots" class="slot-list"></div>
+              </div>
+
+              <div class="list-panel">
+                <div class="list-head">
+                  <h3>المواعيد المحجوزة</h3>
+                  <p>تظهر للأدمن فقط.</p>
+                </div>
+                <div id="reservedSlots" class="slot-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
