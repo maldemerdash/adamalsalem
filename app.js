@@ -56,6 +56,7 @@ const loginMessage = document.querySelector("#loginMessage");
 const adminMessage = document.querySelector("#adminMessage");
 const receiptButton = document.querySelector("#receiptButton");
 const receiptPanel = document.querySelector("#receiptPanel");
+const closeReceiptButton = document.querySelector("#closeReceiptButton");
 const receiptLookupForm = document.querySelector("#receiptLookupForm");
 const receiptResult = document.querySelector("#receiptResult");
 const receiptMessage = document.querySelector("#receiptMessage");
@@ -392,6 +393,39 @@ function showToast(text) {
   }, 5000);
 }
 
+function askRegenerateMode() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-label="تأكيد إعادة المواعيد">
+        <h3>تأكيد إعادة المواعيد الأسبوعية</h3>
+        <p>هل تريد الاستمرار بإعادة إنشاء المواعيد المحذوفة، أو إعادة إنشاء المواعيد المحذوفة مع إتاحة المواعيد المعلقة؟</p>
+        <div class="choice-actions">
+          <button class="secondary-action" type="button" data-choice="deleted">إعادة إنشاء المحذوفة فقط</button>
+          <button class="secondary-action" type="button" data-choice="deleted-and-suspended">إعادة المحذوفة وإتاحة المعلق</button>
+          <button class="outline-action" type="button" data-choice="cancel">إلغاء</button>
+        </div>
+      </div>
+    `;
+
+    const close = (value) => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close(null);
+      const button = event.target.closest("button[data-choice]");
+      if (!button) return;
+      const choice = button.dataset.choice;
+      close(choice === "cancel" ? null : choice);
+    });
+
+    document.body.append(overlay);
+  });
+}
+
 function showPaymentInstructions() {
   bookingMessage.innerHTML = "";
   bookingMessage.className = "message success payment-message";
@@ -476,16 +510,7 @@ function renderBookingOptions() {
 
     const title = document.createElement("div");
     title.className = "day-group-title";
-    const titleText = document.createElement("div");
-    titleText.className = "day-title-text";
-    titleText.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
-    const allDaySuspended = group.slots.every((slot) => slot.suspended);
-    const dayButton = document.createElement("button");
-    dayButton.className = allDaySuspended ? "attendance-button compact-button" : "outline-action compact-button";
-    dayButton.type = "button";
-    dayButton.textContent = allDaySuspended ? "إتاحة مواعيد اليوم" : "تعليق مواعيد كامل اليوم";
-    dayButton.addEventListener("click", () => toggleDaySuspension(group.date, !allDaySuspended));
-    title.append(titleText, dayButton);
+    title.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
 
     const times = document.createElement("div");
     times.className = "time-grid";
@@ -598,6 +623,7 @@ function renderAvailableSlots() {
   const available = getAdminOpenSlots();
   availableCount.textContent = `${getAvailableSlots().length} موعد`;
   availableSlots.innerHTML = "";
+  updateWeekButton();
 
   if (!available.length) {
     const empty = document.createElement("p");
@@ -613,7 +639,16 @@ function renderAvailableSlots() {
 
     const title = document.createElement("div");
     title.className = "day-group-title";
-    title.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
+    const titleText = document.createElement("div");
+    titleText.className = "day-title-text";
+    titleText.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
+    const allDaySuspended = group.slots.every((slot) => slot.suspended);
+    const dayButton = document.createElement("button");
+    dayButton.className = "secondary-action compact-button";
+    dayButton.type = "button";
+    dayButton.textContent = allDaySuspended ? "إتاحة المواعيد لهذا اليوم" : "تعليق مواعيد كامل اليوم";
+    dayButton.addEventListener("click", () => toggleDaySuspension(group.date, !allDaySuspended));
+    title.append(titleText, dayButton);
 
     const times = document.createElement("div");
     times.className = "time-grid";
@@ -638,6 +673,27 @@ function renderAvailableSlots() {
     section.append(title, times);
     availableSlots.append(section);
   });
+}
+
+function getCurrentWeekOpenSlots() {
+  const weekStart = getWeekStart();
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const weekStartKey = toDateKey(weekStart);
+  const weekEndKey = toDateKey(weekEnd);
+  return getAdminOpenSlots().filter((slot) => slot.date >= weekStartKey && slot.date <= weekEndKey);
+}
+
+function getManagedGeneratedSlotIds() {
+  return new Set(getManagedWeekStarts().flatMap((weekStart) => {
+    return buildWeeklySlots(weekStart).map((slot) => slot.id);
+  }));
+}
+
+function updateWeekButton() {
+  const weekSlots = getCurrentWeekOpenSlots();
+  const hasOpenSlot = weekSlots.some((slot) => !slot.suspended);
+  suspendWeekButton.textContent = hasOpenSlot ? "تعليق كامل مواعيد هذا الأسبوع" : "إعادة إتاحة المواعيد لهذا الأسبوع";
 }
 
 function renderBookingsTable() {
@@ -669,7 +725,7 @@ function renderBookingsTable() {
     actionsCell.append(actions);
     row.append(actionsCell);
     if (booking.attended) {
-      actions.textContent = "تمت الجلسة";
+      appendIconButton(actions, "danger-button", "حذف الجلسة التي تمت", ICONS.trash, () => deleteCompletedBooking(booking.id));
     } else if (!booking.confirmed) {
       appendIconButton(actions, "confirm-button", "تأكيد الحجز", ICONS.confirm, () => confirmBooking(booking.id));
     } else {
@@ -768,8 +824,30 @@ async function deleteSlot(slotId) {
 }
 
 async function regenerateWeeklySlots() {
+  const mode = await askRegenerateMode();
+  if (!mode) return;
+
   const count = await insertMissingWeeklySlots({ restoreDeleted: true });
-  showToast(count ? `تم توليد ${count} موعد متاح.` : "لا توجد مواعيد ناقصة للتوليد.");
+  let enabledCount = 0;
+
+  if (mode === "deleted-and-suspended") {
+    await loadData();
+    const managedIds = getManagedGeneratedSlotIds();
+    const suspendedSlots = getAdminOpenSlots()
+      .filter((slot) => managedIds.has(slot.id))
+      .filter((slot) => slot.suspended);
+    enabledCount = suspendedSlots.length;
+    if (enabledCount) {
+      await setSlotsSuspension(suspendedSlots.map((slot) => slot.id), false);
+    }
+  }
+
+  const messageParts = [];
+  messageParts.push(count ? `تم توليد ${count} موعد محذوف.` : "لا توجد مواعيد محذوفة لإعادتها.");
+  if (mode === "deleted-and-suspended") {
+    messageParts.push(enabledCount ? `وتمت إتاحة ${enabledCount} موعد معلق.` : "ولا توجد مواعيد معلقة لإتاحتها.");
+  }
+  showToast(messageParts.join(" "));
   await refreshAll();
 }
 
@@ -808,23 +886,19 @@ async function toggleDaySuspension(date, suspended) {
   await refreshAll();
 }
 
-async function suspendCurrentWeekSlots() {
-  const weekStart = getWeekStart();
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  const weekStartKey = toDateKey(weekStart);
-  const weekEndKey = toDateKey(weekEnd);
-  const weekSlots = getAdminOpenSlots()
-    .filter((slot) => slot.date >= weekStartKey && slot.date <= weekEndKey)
-    .filter((slot) => !slot.suspended);
+async function toggleCurrentWeekSuspension() {
+  const weekSlots = getCurrentWeekOpenSlots();
+  const hasOpenSlot = weekSlots.some((slot) => !slot.suspended);
+  const targetSuspended = hasOpenSlot;
+  const slotsToUpdate = weekSlots.filter((slot) => slot.suspended !== targetSuspended);
 
-  if (!weekSlots.length) {
-    showToast("لا توجد مواعيد متاحة غير معلقة في هذا الأسبوع.");
+  if (!slotsToUpdate.length) {
+    showToast(hasOpenSlot ? "لا توجد مواعيد قابلة للتعليق في هذا الأسبوع." : "لا توجد مواعيد معلقة لإتاحتها في هذا الأسبوع.");
     return;
   }
 
-  await setSlotsSuspension(weekSlots.map((slot) => slot.id), true);
-  showToast("تم تعليق كامل مواعيد هذا الأسبوع.");
+  await setSlotsSuspension(slotsToUpdate.map((slot) => slot.id), targetSuspended);
+  showToast(targetSuspended ? "تم تعليق كامل مواعيد هذا الأسبوع." : "تمت إعادة إتاحة المواعيد لهذا الأسبوع.");
   await refreshAll();
 }
 
@@ -861,12 +935,28 @@ async function cancelBooking(bookingId) {
   await refreshAll();
 }
 
+async function deleteCompletedBooking(bookingId) {
+  await api(`appointment_bookings?id=eq.${bookingId}`, { method: "DELETE" });
+  showToast("تم حذف الجلسة التي تمت.");
+  await refreshAll();
+}
+
 adminLoginButton.addEventListener("click", () => showPanel("admin"));
 backToBookingButton.addEventListener("click", () => showPanel("booking"));
 regenerateSlotsButton.addEventListener("click", regenerateWeeklySlots);
-suspendWeekButton.addEventListener("click", suspendCurrentWeekSlots);
+suspendWeekButton.addEventListener("click", toggleCurrentWeekSuspension);
 receiptButton.addEventListener("click", () => {
-  receiptPanel.classList.toggle("hidden");
+  receiptPanel.classList.remove("hidden");
+});
+
+closeReceiptButton.addEventListener("click", () => {
+  receiptPanel.classList.add("hidden");
+});
+
+receiptPanel.addEventListener("click", (event) => {
+  if (event.target === receiptPanel) {
+    receiptPanel.classList.add("hidden");
+  }
 });
 
 adminTabs.forEach((tab) => {

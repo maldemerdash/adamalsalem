@@ -33,25 +33,32 @@
 
       <section class="app-card" aria-label="نظام حجز المواعيد">
         <section id="receiptPanel" class="receipt-panel hidden" aria-label="إرفاق إيصال التحويل">
-          <div class="list-head">
-            <div>
-              <h2>إرفاق إيصال التحويل</h2>
-              <p>أدخل رقم الجوال ورقم الحجز لاسترجاع بيانات الموعد.</p>
+          <div class="receipt-dialog">
+            <div class="list-head">
+              <div>
+                <h2>إرفاق إيصال التحويل</h2>
+                <p>أدخل رقم الجوال ورقم الحجز لاسترجاع بيانات الموعد.</p>
+              </div>
+              <button id="closeReceiptButton" class="outline-action icon-action" type="button" title="إغلاق" aria-label="إغلاق">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m18.3 5.71-1.41-1.41L12 9.17 7.11 4.29 5.7 5.7 10.59 10.6 5.7 15.49l1.41 1.41L12 12.01l4.89 4.89 1.41-1.41-4.89-4.89 4.89-4.89Z" />
+                </svg>
+              </button>
             </div>
+            <form id="receiptLookupForm" class="form-grid">
+              <label>
+                <span>رقم الجوال</span>
+                <input id="receiptPhoneInput" type="tel" required placeholder="05xxxxxxxx" />
+              </label>
+              <label>
+                <span>رقم الحجز</span>
+                <input id="receiptNumberInput" type="text" required placeholder="مثال: 0991" />
+              </label>
+              <button class="secondary-action" type="submit">استرجاع الحجز</button>
+            </form>
+            <div id="receiptResult" class="receipt-result"></div>
+            <div id="receiptMessage" class="message" role="status" aria-live="polite"></div>
           </div>
-          <form id="receiptLookupForm" class="form-grid">
-            <label>
-              <span>رقم الجوال</span>
-              <input id="receiptPhoneInput" type="tel" required placeholder="05xxxxxxxx" />
-            </label>
-            <label>
-              <span>رقم الحجز</span>
-              <input id="receiptNumberInput" type="text" required placeholder="مثال: 00001-099" />
-            </label>
-            <button class="secondary-action" type="submit">استرجاع الحجز</button>
-          </form>
-          <div id="receiptResult" class="receipt-result"></div>
-          <div id="receiptMessage" class="message" role="status" aria-live="polite"></div>
         </section>
 
         <section id="bookingPanel" class="panel active" data-panel="booking">
@@ -207,10 +214,10 @@
                   <h3>المواعيد المتاحة</h3>
                   <p>مرتبة حسب اليوم والتاريخ، وتظهر الساعات فقط أسفل كل يوم.</p>
                 </div>
-                <div class="list-actions">
-                  <button id="regenerateSlotsButton" class="secondary-action" type="button">إعادة المواعيد الأسبوعية المحذوفة بالخطأ</button>
-                  <button id="suspendWeekButton" class="outline-action" type="button">تعليق كامل مواعيد هذا الأسبوع</button>
-                </div>
+              </div>
+              <div class="list-actions">
+                <button id="regenerateSlotsButton" class="secondary-action" type="button">إعادة المواعيد الأسبوعية</button>
+                <button id="suspendWeekButton" class="secondary-action" type="button">تعليق كامل مواعيد هذا الأسبوع</button>
               </div>
               <div id="availableSlots" class="grouped-slots"></div>
             </div>

@@ -200,11 +200,28 @@ h3 {
 }
 
 .receipt-panel {
-  margin-bottom: 18px;
-  padding: 14px;
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(31, 41, 51, 0.42);
+}
+
+.receipt-panel.hidden {
+  display: none;
+}
+
+.receipt-dialog {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface-2);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 #receiptButton,
@@ -479,6 +496,15 @@ select:focus {
   justify-content: flex-start;
   gap: 8px;
   flex-wrap: wrap;
+  margin: 6px 0 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.list-actions .secondary-action,
+.day-group-title .secondary-action {
+  background: var(--primary);
+  color: #fff;
 }
 
 .admin-tabs {
@@ -688,9 +714,12 @@ tr:has(.appointment-cell) td {
 }
 
 .attended-row {
+  background: #f2f4f5;
+}
+
+.attended-row td:not(:last-child) {
   opacity: 0.55;
   filter: grayscale(0.8);
-  background: #f2f4f5;
 }
 
 .attended-row .table-actions {
@@ -761,6 +790,35 @@ tr:has(.appointment-cell) td {
   box-shadow: var(--shadow);
   font-weight: 800;
   line-height: 1.7;
+}
+
+.choice-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(31, 41, 51, 0.42);
+}
+
+.choice-dialog {
+  width: min(560px, 100%);
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.choice-dialog p {
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.choice-actions {
+  display: grid;
+  gap: 8px;
 }
 
 .disabled-link {
