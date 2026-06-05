@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>حجز المواعيد</title>
+    <title>حجز المواعيد جلسات الرقية المنفردة</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
@@ -12,45 +12,82 @@
   <body>
     <main class="page">
       <header class="topbar">
-        <button id="adminLoginButton" class="login-button" type="button" title="تسجيل دخول الأدمن">
-          دخول الأدمن
+        <button id="adminLoginButton" class="login-button" type="button" title="تسجيل دخول الأدمن" aria-label="تسجيل دخول الأدمن">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5Zm0 2c-4.42 0-8 2.24-8 5v1c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-1c0-2.76-3.58-5-8-5Z" />
+          </svg>
         </button>
 
         <div class="top-title">
           <p class="eyebrow">نظام المواعيد</p>
-          <h1>حجز المواعيد</h1>
+          <h1>حجز المواعيد جلسات الرقية المنفردة</h1>
         </div>
 
         <div class="service-hours">
-          <span>الأحد - الخميس</span>
-          <strong>5:00 - 9:00 مساءً</strong>
+          <strong>جلسات الرقية المنفردة تبدأ من يوم الأحد إلى يوم الخميس من 5:00 مساء حتى 9:00 مساء</strong>
         </div>
       </header>
 
       <section class="app-card" aria-label="نظام حجز المواعيد">
+        <div class="user-toolbar">
+          <button id="receiptButton" class="outline-action" type="button">إرفاق إيصال التحويل</button>
+        </div>
+
+        <section id="receiptPanel" class="receipt-panel hidden" aria-label="إرفاق إيصال التحويل">
+          <div class="list-head">
+            <div>
+              <h2>إرفاق إيصال التحويل</h2>
+              <p>أدخل رقم الجوال ورقم الحجز لاسترجاع بيانات الموعد.</p>
+            </div>
+          </div>
+          <form id="receiptLookupForm" class="form-grid">
+            <label>
+              <span>رقم الجوال</span>
+              <input id="receiptPhoneInput" type="tel" required placeholder="05xxxxxxxx" />
+            </label>
+            <label>
+              <span>رقم الحجز</span>
+              <input id="receiptNumberInput" type="text" required placeholder="مثال: 00001-099" />
+            </label>
+            <button class="secondary-action" type="submit">استرجاع الحجز</button>
+          </form>
+          <div id="receiptResult" class="receipt-result"></div>
+          <div id="receiptMessage" class="message" role="status" aria-live="polite"></div>
+        </section>
+
         <section id="bookingPanel" class="panel active" data-panel="booking">
           <div class="content-grid">
             <aside class="info-panel">
               <p class="section-kicker">للمستخدم</p>
               <h2>اختر الموعد المناسب</h2>
               <p>
-                تظهر لك المواعيد المتاحة فقط. بعد إتمام الحجز يتم إخفاء الموعد لمدة 15 دقيقة حتى يتم تأكيد التحويل.
+                اختر اليوم والساعة المناسبة من المواعيد المتاحة، ثم أكمل بياناتك لتأكيد الحجز المؤقت.
               </p>
               <div class="mini-schedule">
-                <span>مدة الموعد</span>
+                <span>مدة موعد جلسة الرقية المنفردة</span>
                 <strong>30 دقيقة</strong>
               </div>
             </aside>
 
             <form id="bookingForm" class="form-grid">
               <label>
-                <span>الاسم</span>
-                <input id="nameInput" type="text" autocomplete="name" required placeholder="مثال: أحمد محمد" />
+                <span>الاسم الأول</span>
+                <input id="firstNameInput" type="text" autocomplete="given-name" required />
+              </label>
+
+              <label>
+                <span>اسم الأب</span>
+                <input id="fatherNameInput" type="text" required />
+              </label>
+
+              <label>
+                <span>الاسم الأخير</span>
+                <input id="lastNameInput" type="text" autocomplete="family-name" required />
               </label>
 
               <label>
                 <span>رقم الجوال</span>
-                <input id="phoneInput" type="tel" autocomplete="tel" required placeholder="05xxxxxxxx" />
+                <input id="phoneInput" type="tel" autocomplete="tel" inputmode="numeric" maxlength="10" required placeholder="05xxxxxxxx" />
               </label>
 
               <label>
@@ -72,12 +109,15 @@
                 </select>
               </label>
 
-              <label>
-                <span>الموعد المتاح</span>
-                <select id="slotSelect" required></select>
-              </label>
+              <input id="slotSelect" type="hidden" required />
+
+              <div class="user-slots-field">
+                <span>المواعيد المتاحة</span>
+                <div id="userSlots" class="user-slots"></div>
+              </div>
 
               <button class="primary-action" type="submit">تأكيد الحجز</button>
+              <div id="bookingNumberDisplay" class="booking-number hidden"></div>
               <div id="bookingMessage" class="message" role="status" aria-live="polite"></div>
             </form>
           </div>
@@ -173,6 +213,7 @@
                   <thead>
                     <tr>
                       <th>الاسم</th>
+                      <th>رقم الحجز</th>
                       <th>رقم الجوال</th>
                       <th>المدينة</th>
                       <th>الموعد</th>

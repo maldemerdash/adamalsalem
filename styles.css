@@ -40,7 +40,7 @@ select {
 
 .topbar {
   display: grid;
-  grid-template-columns: 160px 1fr 220px;
+  grid-template-columns: 56px 1fr 330px;
   align-items: center;
   gap: 18px;
   margin-bottom: 18px;
@@ -72,9 +72,10 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-size: clamp(1.65rem, 3.8vw, 3rem);
   line-height: 1.1;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 h2 {
@@ -92,6 +93,10 @@ h3 {
   border-radius: 8px;
   background: var(--primary-soft);
   color: var(--primary-dark);
+}
+
+.service-hours strong {
+  line-height: 1.6;
 }
 
 .service-hours span,
@@ -177,6 +182,20 @@ h3 {
   gap: 15px;
 }
 
+.user-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 14px;
+}
+
+.receipt-panel {
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
 .login-grid,
 .credentials-grid {
   grid-template-columns: 1fr;
@@ -253,7 +272,20 @@ select:focus {
 
 .login-button {
   justify-self: start;
-  min-width: 126px;
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.login-button svg,
+.icon-action svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
 }
 
 .danger-button {
@@ -291,6 +323,16 @@ select:focus {
   text-decoration: none;
 }
 
+.icon-action {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  text-decoration: none;
+}
+
 .primary-action:hover,
 .secondary-action:hover,
 .outline-action:hover,
@@ -323,6 +365,18 @@ select:focus {
   color: var(--ink);
 }
 
+.booking-number {
+  grid-column: 1 / -1;
+  padding: 14px;
+  border: 2px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: clamp(1.45rem, 4vw, 2.4rem);
+  font-weight: 800;
+  text-align: center;
+}
+
 .payment-text p {
   margin: 0 0 4px;
 }
@@ -343,6 +397,22 @@ select:focus {
 
 .hidden {
   display: none;
+}
+
+.user-slots-field {
+  grid-column: 1 / -1;
+}
+
+.user-slots-field > span {
+  display: block;
+  margin-bottom: 8px;
+  color: #344451;
+  font-weight: 800;
+}
+
+.user-slots {
+  display: grid;
+  gap: 14px;
 }
 
 .back-button {
@@ -437,13 +507,30 @@ select:focus {
   background: #fff;
 }
 
+.bookable-time.selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.14);
+}
+
+.suspended-slot {
+  opacity: 0.72;
+  background: #f0f1f2;
+}
+
+.suspended-slot > span::after {
+  content: " (معلق)";
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
 .bookings-table-wrap {
   overflow-x: auto;
 }
 
 .bookings-table {
   width: 100%;
-  min-width: 820px;
+  min-width: 980px;
   border-collapse: collapse;
 }
 
@@ -461,6 +548,17 @@ select:focus {
   font-size: 0.92rem;
 }
 
+.bookings-table th:first-child,
+.bookings-table td:first-child {
+  min-width: 170px;
+  white-space: nowrap;
+}
+
+.bookings-table th:nth-child(5),
+.bookings-table td:nth-child(5) {
+  min-width: 155px;
+}
+
 .table-actions {
   display: flex;
   flex-wrap: wrap;
@@ -469,6 +567,38 @@ select:focus {
 
 .empty-state {
   color: var(--muted);
+}
+
+.receipt-result {
+  margin-top: 12px;
+}
+
+.receipt-card {
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, 260px) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.receipt-card strong,
+.receipt-card span {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.receipt-file span {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 800;
+}
+
+.disabled-link {
+  pointer-events: none;
+  opacity: 0.48;
 }
 
 @media (max-width: 860px) {
@@ -484,6 +614,14 @@ select:focus {
 
   .service-hours {
     width: 100%;
+  }
+
+  h1 {
+    white-space: normal;
+  }
+
+  .receipt-card {
+    grid-template-columns: 1fr;
   }
 
   .admin-head,
