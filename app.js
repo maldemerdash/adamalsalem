@@ -935,7 +935,10 @@ async function markAttended(bookingId) {
 
 function getCancellationWhatsappUrl(booking) {
   const phone = toWhatsappPhone(booking.phone);
-  const message = encodeURIComponent("تم إلغاء الحجز لعدم التحويل وإرسال الإيصال");
+  const text = booking.confirmed
+    ? "تم إلغاء الحجز بناءا على طلبك"
+    : "تم إلغاء الحجز لعدم التحويل وإرسال الإيصال";
+  const message = encodeURIComponent(text);
   return `https://api.whatsapp.com/send?phone=${phone}&text=${message}`;
 }
 
