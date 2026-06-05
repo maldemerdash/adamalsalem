@@ -70,6 +70,11 @@ const availableSlots = document.querySelector("#availableSlots");
 const reservedSlots = document.querySelector("#reservedSlots");
 const availableCount = document.querySelector("#availableCount");
 const reservedCount = document.querySelector("#reservedCount");
+const adminTabs = document.querySelectorAll(".admin-tab");
+const adminAvailableView = document.querySelector("#adminAvailableView");
+const adminBookingsView = document.querySelector("#adminBookingsView");
+const toast = document.querySelector("#toast");
+let toastTimer = null;
 
 const adminSession = {
   get isLoggedIn() {
@@ -376,6 +381,16 @@ function showMessage(element, text, type) {
   element.className = `message ${type || ""}`.trim();
 }
 
+function showToast(text) {
+  if (!toast) return;
+  toast.textContent = text;
+  toast.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.add("hidden");
+  }, 5000);
+}
+
 function showPaymentInstructions() {
   bookingMessage.innerHTML = "";
   bookingMessage.className = "message success payment-message";
@@ -396,11 +411,15 @@ function showPaymentInstructions() {
   const whatsapp = document.createElement("p");
   whatsapp.textContent = "وبعد التحويل يتم الضغط على زر إرفاق إيصال التحويل في أعلى الموقع";
 
+  const saveNote = document.createElement("p");
+  saveNote.className = "payment-save-note";
+  saveNote.textContent = "تنبيه: يرجى التقاط الشاشة لحفظ رقم الحجز.";
+
   const warning = document.createElement("p");
   warning.className = "payment-warning";
   warning.textContent = MESSAGES.paymentWarning;
 
-  bookingMessage.append(text, qr, whatsapp, warning);
+  bookingMessage.append(text, qr, whatsapp, saveNote, warning);
 }
 
 function setBusy(form, isBusy) {
@@ -413,6 +432,19 @@ function showPanel(name) {
   const isAdmin = name === "admin";
   bookingPanel.classList.toggle("active", !isAdmin);
   adminPanel.classList.toggle("active", isAdmin);
+  receiptButton.classList.toggle("hidden", isAdmin);
+  if (isAdmin) {
+    receiptPanel.classList.add("hidden");
+  }
+}
+
+function showAdminView(name) {
+  const isBookings = name === "bookings";
+  adminAvailableView.classList.toggle("active", !isBookings);
+  adminBookingsView.classList.toggle("active", isBookings);
+  adminTabs.forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.adminView === name);
+  });
 }
 
 function renderAdminAccess() {
@@ -711,7 +743,7 @@ async function deleteSlot(slotId) {
   await refreshAll();
 
   if (bookings.some((booking) => booking.slot_id === slotId)) {
-    showMessage(adminMessage, "لا يمكن حذف موعد تم حجزه بالفعل.", "error");
+    showToast("لا يمكن حذف موعد تم حجزه بالفعل.");
     return;
   }
 
@@ -721,13 +753,13 @@ async function deleteSlot(slotId) {
     body: [{ slot_id: slotId }]
   });
   await api(`appointment_slots?id=eq.${encodeURIComponent(slotId)}`, { method: "DELETE" });
-  showMessage(adminMessage, "تم حذف الموعد المحدد.", "success");
+  showToast("تم حذف الموعد المحدد.");
   await refreshAll();
 }
 
 async function regenerateWeeklySlots() {
   const count = await insertMissingWeeklySlots({ restoreDeleted: true });
-  showMessage(adminMessage, count ? `تم توليد ${count} موعد متاح.` : "لا توجد مواعيد ناقصة للتوليد.", "success");
+  showToast(count ? `تم توليد ${count} موعد متاح.` : "لا توجد مواعيد ناقصة للتوليد.");
   await refreshAll();
 }
 
@@ -737,7 +769,7 @@ async function toggleSlotSuspension(slotId, suspended) {
     headers: { Prefer: "return=minimal" },
     body: { suspended }
   });
-  showMessage(adminMessage, suspended ? "تم تعليق الموعد وإخفاؤه عن المستخدم." : "تمت إتاحة الموعد للمستخدم.", "success");
+  showToast(suspended ? "تم تعليق الموعد وإخفاؤه عن المستخدم." : "تمت إتاحة الموعد للمستخدم.");
   await refreshAll();
 }
 
@@ -745,7 +777,7 @@ async function confirmBooking(bookingId) {
   await refreshAll();
 
   if (!bookings.some((booking) => booking.id === bookingId)) {
-    showMessage(adminMessage, "انتهت مهلة الحجز وعاد الموعد للقائمة.", "error");
+    showToast("انتهت مهلة الحجز وعاد الموعد للقائمة.");
     return;
   }
 
@@ -754,7 +786,7 @@ async function confirmBooking(bookingId) {
     headers: { Prefer: "return=minimal" },
     body: { confirmed: true, confirmed_at: new Date().toISOString() }
   });
-  showMessage(adminMessage, "تم تأكيد الموعد.", "success");
+  showToast("تم تأكيد الموعد.");
   await refreshAll();
 }
 
@@ -764,13 +796,13 @@ async function markAttended(bookingId) {
     headers: { Prefer: "return=minimal" },
     body: { attended: true, attended_at: new Date().toISOString() }
   });
-  showMessage(adminMessage, "تم تسجيل الحضور.", "success");
+  showToast("تم تسجيل الحضور.");
   await refreshAll();
 }
 
 async function cancelBooking(bookingId) {
   await api(`appointment_bookings?id=eq.${bookingId}`, { method: "DELETE" });
-  showMessage(adminMessage, "تم إلغاء الحجز وإرجاع الموعد لقائمة المتاح.", "success");
+  showToast("تم إلغاء الحجز وإرجاع الموعد لقائمة المتاح.");
   await refreshAll();
 }
 
@@ -779,6 +811,10 @@ backToBookingButton.addEventListener("click", () => showPanel("booking"));
 regenerateSlotsButton.addEventListener("click", regenerateWeeklySlots);
 receiptButton.addEventListener("click", () => {
   receiptPanel.classList.toggle("hidden");
+});
+
+adminTabs.forEach((tab) => {
+  tab.addEventListener("click", () => showAdminView(tab.dataset.adminView));
 });
 
 receiptLookupForm.addEventListener("submit", async (event) => {
@@ -818,7 +854,7 @@ adminLoginForm.addEventListener("submit", (event) => {
   adminSession.isLoggedIn = true;
   adminLoginForm.reset();
   showMessage(loginMessage, "", "");
-  showMessage(adminMessage, "تم تسجيل الدخول بنجاح.", "success");
+  showToast("تم تسجيل الدخول بنجاح.");
   renderAll();
 });
 
@@ -837,9 +873,9 @@ credentialsForm.addEventListener("submit", async (event) => {
     const password = document.querySelector("#newAdminPassword").value;
     await saveAdminSettings(username, password);
     credentialsForm.classList.add("hidden");
-    showMessage(adminMessage, "تم حفظ اسم المستخدم وكلمة المرور.", "success");
+    showToast("تم حفظ اسم المستخدم وكلمة المرور.");
   } catch (error) {
-    showMessage(adminMessage, `تعذر حفظ بيانات الدخول: ${error.message}`, "error");
+    showToast(`تعذر حفظ بيانات الدخول: ${error.message}`);
   } finally {
     setBusy(credentialsForm, false);
   }
@@ -848,7 +884,7 @@ credentialsForm.addEventListener("submit", async (event) => {
 logoutButton.addEventListener("click", () => {
   adminSession.isLoggedIn = false;
   credentialsForm.classList.add("hidden");
-  showMessage(adminMessage, "", "");
+  showToast("تم تسجيل الخروج.");
   renderAll();
 });
 

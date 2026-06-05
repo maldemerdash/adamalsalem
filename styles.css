@@ -40,7 +40,8 @@ select {
 
 .topbar {
   display: grid;
-  grid-template-columns: 1fr 56px;
+  direction: ltr;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 18px;
   margin-bottom: 18px;
@@ -52,7 +53,18 @@ select {
 }
 
 .top-title {
+  direction: rtl;
   text-align: right;
+  min-width: 0;
+}
+
+.top-actions {
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: start;
+  min-width: 0;
 }
 
 .eyebrow,
@@ -72,10 +84,11 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: clamp(1.35rem, 3vw, 2.25rem);
-  line-height: 1.1;
+  font-size: clamp(1.35rem, 2.6vw, 2rem);
+  line-height: 1.25;
   font-weight: 800;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 h2 {
@@ -89,6 +102,7 @@ h3 {
 }
 
 .service-hours {
+  direction: rtl;
   grid-column: 1 / -1;
   padding: 14px 16px;
   border-radius: 8px;
@@ -185,12 +199,6 @@ h3 {
   gap: 15px;
 }
 
-.user-toolbar {
-  display: flex;
-  justify-content: flex-start;
-  margin-bottom: 14px;
-}
-
 .receipt-panel {
   margin-bottom: 18px;
   padding: 14px;
@@ -199,10 +207,20 @@ h3 {
   background: var(--surface-2);
 }
 
-#receiptButton {
+#receiptButton,
+.receipt-top-button {
   border: 0;
   background: var(--primary);
   color: #fff;
+}
+
+.receipt-top-button {
+  min-height: 44px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 16px;
+  white-space: nowrap;
 }
 
 .login-grid,
@@ -224,6 +242,12 @@ label span {
   margin-bottom: 8px;
   color: #344451;
   font-weight: 800;
+}
+
+#bookingForm label span::after,
+.user-slots-field > span::after {
+  content: " *";
+  color: var(--danger);
 }
 
 input,
@@ -404,6 +428,12 @@ select:focus {
   font-weight: 800;
 }
 
+.payment-save-note {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 800;
+}
+
 .hidden {
   display: none;
 }
@@ -441,6 +471,40 @@ select:focus {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--gray);
+}
+
+.admin-tab {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.admin-tab.active {
+  background: #fff;
+  color: var(--primary-dark);
+  box-shadow: 0 1px 8px rgba(31, 41, 51, 0.08);
+}
+
+.admin-view {
+  display: none;
+}
+
+.admin-view.active {
+  display: block;
 }
 
 .auto-note {
@@ -668,6 +732,22 @@ tr:has(.appointment-cell) td {
   text-decoration: none;
 }
 
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  max-width: min(420px, calc(100% - 32px));
+  padding: 14px 18px;
+  border: 1px solid rgba(24, 121, 78, 0.2);
+  border-radius: 8px;
+  background: #e7f7ef;
+  color: var(--success);
+  box-shadow: var(--shadow);
+  font-weight: 800;
+  line-height: 1.7;
+}
+
 .disabled-link {
   pointer-events: none;
   opacity: 0.48;
@@ -680,8 +760,12 @@ tr:has(.appointment-cell) td {
     grid-template-columns: 1fr;
   }
 
+  .top-actions {
+    justify-self: start;
+  }
+
   .login-button {
-    justify-self: end;
+    justify-self: auto;
   }
 
   .service-hours {
@@ -714,7 +798,16 @@ tr:has(.appointment-cell) td {
   }
 
   .form-grid,
-  .stats-grid {
+  .stats-grid,
+  .admin-tabs {
     grid-template-columns: 1fr;
+  }
+
+  .top-actions {
+    width: 100%;
+  }
+
+  .receipt-top-button {
+    flex: 1;
   }
 }
