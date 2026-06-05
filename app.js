@@ -17,7 +17,7 @@ const WORK_DAYS = [
 ];
 const MESSAGES = {
   paymentInstructions:
-    "لتأكيد الحجز يرجى تحويل مبلغ 50 ريال\nعلى الحساب البنكي التالي:\nSA4480000456608016164286\nوبعد التحويل يتم إرسال الإيصال على الواتس رقم 0555707854",
+    "لتأكيد الحجز يرجى تحويل مبلغ 50 ريال\nعلى الحساب البنكي التالي:\nSA4480000456608016164286\nوبعد التحويل يتم الضغط على زر إرفاق إيصال التحويل في أعلى الموقع",
   paymentWarning:
     "تنبيه: في حال لم يتم التحويل وإرسال الإيصال خلال 15 دقيقة سيتم إلغاء الحجز تلقائيا",
   whatsappConfirmation(booking) {
@@ -394,7 +394,7 @@ function showPaymentInstructions() {
   qr.alt = "صورة الحساب البنكي";
 
   const whatsapp = document.createElement("p");
-  whatsapp.textContent = "وبعد التحويل يتم إرسال الإيصال على الواتس رقم 0555707854";
+  whatsapp.textContent = "وبعد التحويل يتم الضغط على زر إرفاق إيصال التحويل في أعلى الموقع";
 
   const warning = document.createElement("p");
   warning.className = "payment-warning";
@@ -451,14 +451,24 @@ function renderBookingOptions() {
     group.slots.forEach((slot) => {
       const item = document.createElement("div");
       item.className = `time-item bookable-time ${selectedSlotId === slot.id ? "selected" : ""}`;
+      item.setAttribute("role", "button");
+      item.setAttribute("tabindex", "0");
+      item.setAttribute("aria-label", `اختيار موعد ${slotLabel(slot)}`);
       const time = document.createElement("span");
       time.textContent = formatTime(slot.time);
-      appendButton(item, "confirm-button compact-button", "حجز", () => {
+      const selectSlot = () => {
         selectedSlotId = slot.id;
         slotSelect.value = slot.id;
         renderBookingOptions();
+      };
+      item.addEventListener("click", selectSlot);
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          selectSlot();
+        }
       });
-      item.prepend(time);
+      item.append(time);
       times.append(item);
     });
 
@@ -492,7 +502,10 @@ const ICONS = {
   confirm: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg>',
   whatsapp: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2A9.93 9.93 0 0 0 2.1 11.94c0 1.75.46 3.46 1.34 4.97L2 22l5.25-1.38a9.91 9.91 0 0 0 4.79 1.22h.01A9.93 9.93 0 0 0 22 11.91 9.94 9.94 0 0 0 12.04 2Zm5.78 14.2c-.24.67-1.2 1.23-1.94 1.39-.52.11-1.2.2-3.48-.74-2.92-1.21-4.8-4.18-4.95-4.38-.14-.19-1.18-1.57-1.18-3 0-1.43.73-2.13.99-2.42.24-.27.64-.4 1.02-.4h.73c.23 0 .52.04.79.6.3.62 1.02 2.49 1.1 2.67.09.18.15.4.03.64-.11.24-.17.39-.35.6-.18.21-.37.47-.53.63-.18.18-.36.38-.16.75.2.36.87 1.43 1.87 2.32 1.29 1.15 2.37 1.51 2.73 1.68.36.18.57.15.78-.09.24-.27.9-1.05 1.14-1.41.24-.36.48-.3.81-.18.33.12 2.1.99 2.46 1.17.36.18.6.27.69.42.09.15.09.86-.15 1.53Z"/></svg>',
   attend: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Zm8.6-1.9-5.1 5.08-2.1-2.08-1.4 1.4 3.5 3.5 6.5-6.5-1.4-1.4Z"/></svg>',
-  cancel: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18.3 5.71-1.41-1.41L12 9.17 7.11 4.29 5.7 5.7 10.59 10.6 5.7 15.49l1.41 1.41L12 12.01l4.89 4.89 1.41-1.41-4.89-4.89 4.89-4.89Z"/></svg>'
+  cancel: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18.3 5.71-1.41-1.41L12 9.17 7.11 4.29 5.7 5.7 10.59 10.6 5.7 15.49l1.41 1.41L12 12.01l4.89 4.89 1.41-1.41-4.89-4.89 4.89-4.89Z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6V5Zm8 0h4v14h-4V5Z"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7L8 5Z"/></svg>'
 };
 
 function appendIconButton(parent, className, title, icon, onClick) {
@@ -527,6 +540,18 @@ function appendCell(row, value) {
   return cell;
 }
 
+function appendAppointmentCell(row, booking) {
+  const cell = document.createElement("td");
+  cell.className = "appointment-cell";
+  [booking.slot.day, formatDate(booking.slot.date), formatTime(booking.slot.time)].forEach((value) => {
+    const line = document.createElement("span");
+    line.textContent = value;
+    cell.append(line);
+  });
+  row.append(cell);
+  return cell;
+}
+
 function renderAvailableSlots() {
   const available = getAdminOpenSlots();
   availableCount.textContent = `${getAvailableSlots().length} موعد`;
@@ -556,13 +581,14 @@ function renderAvailableSlots() {
       item.className = `time-item ${slot.suspended ? "suspended-slot" : ""}`;
       const time = document.createElement("span");
       time.textContent = formatTime(slot.time);
-      appendButton(
+      appendIconButton(
         item,
-        slot.suspended ? "attendance-button compact-button" : "outline-action compact-button",
+        slot.suspended ? "attendance-button" : "outline-action",
         slot.suspended ? "إتاحة الموعد" : "تعليق الموعد",
+        slot.suspended ? ICONS.play : ICONS.pause,
         () => toggleSlotSuspension(slot.id, !slot.suspended)
       );
-      appendButton(item, "danger-button compact-button", "حذف", () => deleteSlot(slot.id));
+      appendIconButton(item, "danger-button", "حذف الموعد", ICONS.trash, () => deleteSlot(slot.id));
       item.prepend(time);
       times.append(item);
     });
@@ -586,24 +612,27 @@ function renderBookingsTable() {
 
   reserved.forEach((booking) => {
     const row = document.createElement("tr");
+    if (booking.attended) {
+      row.className = "attended-row";
+    }
     appendCell(row, booking.name);
     appendCell(row, booking.booking_number || "-");
     appendCell(row, booking.phone);
     appendCell(row, booking.city || "غير محدد");
-    appendCell(row, `${booking.slot.day}\n${formatDate(booking.slot.date)}\n${formatTime(booking.slot.time)}`);
+    appendAppointmentCell(row, booking);
     appendCell(row, getBookingStatusText(booking));
     const actionsCell = document.createElement("td");
     const actions = document.createElement("div");
     actions.className = "table-actions";
     actionsCell.append(actions);
     row.append(actionsCell);
-    if (!booking.confirmed) {
+    if (booking.attended) {
+      actions.textContent = "تمت الجلسة";
+    } else if (!booking.confirmed) {
       appendIconButton(actions, "confirm-button", "تأكيد الحجز", ICONS.confirm, () => confirmBooking(booking.id));
     } else {
       appendIconLink(actions, "whatsapp-button", "إرسال واتساب", ICONS.whatsapp, getWhatsappUrl(booking));
-      if (!booking.attended) {
-        appendIconButton(actions, "attendance-button", "تم الحضور", ICONS.attend, () => markAttended(booking.id));
-      }
+      appendIconButton(actions, "attendance-button", "تم الحضور", ICONS.attend, () => markAttended(booking.id));
     }
     if (!booking.attended) {
       appendIconButton(actions, "danger-button", "إلغاء الحجز", ICONS.cancel, () => cancelBooking(booking.id));
@@ -625,35 +654,42 @@ function renderReceiptBooking(booking) {
   const card = document.createElement("div");
   card.className = "receipt-card";
 
-  const details = document.createElement("div");
-  details.innerHTML = `
-    <strong>${booking.name}</strong>
-    <span>رقم الحجز: ${booking.booking_number}</span>
-    <span>${booking.slot.day} - ${formatDate(booking.slot.date)} - ${formatTime(booking.slot.time)}</span>
+  const table = document.createElement("table");
+  table.className = "receipt-table";
+  table.innerHTML = `
+    <tbody>
+      <tr><th>الاسم</th><td></td></tr>
+      <tr><th>رقم الحجز</th><td></td></tr>
+      <tr><th>اليوم</th><td></td></tr>
+      <tr><th>التاريخ</th><td></td></tr>
+      <tr><th>الساعة</th><td></td></tr>
+      <tr><th>المدينة</th><td></td></tr>
+    </tbody>
   `;
+  const cells = table.querySelectorAll("td");
+  [
+    booking.name,
+    booking.booking_number,
+    booking.slot.day,
+    formatDate(booking.slot.date),
+    formatTime(booking.slot.time),
+    booking.city || "غير محدد"
+  ].forEach((value, index) => {
+    cells[index].textContent = value;
+  });
 
-  const fileLabel = document.createElement("label");
-  fileLabel.className = "receipt-file";
-  fileLabel.innerHTML = `
-    <span>إرفاق الإيصال</span>
-    <input id="receiptFileInput" type="file" accept="image/*" capture="environment" />
-  `;
+  const note = document.createElement("p");
+  note.className = "receipt-note";
+  note.textContent = "بعد التحويل يتم إرسال إيصال تحويل على ال WhatsApp من خلال الضغط على الزر أدناه";
 
   const sendLink = document.createElement("a");
-  sendLink.className = "whatsapp-button compact-button disabled-link";
+  sendLink.className = "whatsapp-button receipt-whatsapp";
   sendLink.textContent = "إرسال واتساب";
   sendLink.href = getReceiptWhatsappUrl(booking);
   sendLink.target = "_blank";
   sendLink.rel = "noopener noreferrer";
-  sendLink.setAttribute("aria-disabled", "true");
 
-  fileLabel.querySelector("input").addEventListener("change", (event) => {
-    const hasFile = event.target.files && event.target.files.length > 0;
-    sendLink.classList.toggle("disabled-link", !hasFile);
-    sendLink.setAttribute("aria-disabled", hasFile ? "false" : "true");
-  });
-
-  card.append(details, fileLabel, sendLink);
+  card.append(table, note, sendLink);
   receiptResult.append(card);
 }
 
@@ -818,9 +854,9 @@ logoutButton.addEventListener("click", () => {
 
 bookingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const selectedSlotId = slotSelect.value;
+  const selectedSlotForSubmit = slotSelect.value;
 
-  if (!selectedSlotId) {
+  if (!selectedSlotForSubmit) {
     showMessage(bookingMessage, "يرجى اختيار موعد من القائمة.", "error");
     return;
   }
@@ -829,9 +865,9 @@ bookingForm.addEventListener("submit", async (event) => {
 
   try {
     await refreshAll();
-    const slot = slots.find((item) => item.id === selectedSlotId);
+    const slot = slots.find((item) => item.id === selectedSlotForSubmit);
 
-    if (!slot || bookings.some((booking) => booking.slot_id === selectedSlotId)) {
+    if (!slot || bookings.some((booking) => booking.slot_id === selectedSlotForSubmit)) {
       showMessage(bookingMessage, "هذا الموعد لم يعد متاحًا. اختر موعدًا آخر.", "error");
       return;
     }
@@ -858,7 +894,7 @@ bookingForm.addEventListener("submit", async (event) => {
       headers: { Prefer: "return=representation" },
       body: [{
         id: createId(),
-        slot_id: selectedSlotId,
+        slot_id: selectedSlotForSubmit,
         name: fullName,
         first_name: firstName,
         father_name: fatherName,

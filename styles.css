@@ -40,7 +40,7 @@ select {
 
 .topbar {
   display: grid;
-  grid-template-columns: 56px 1fr 330px;
+  grid-template-columns: 1fr 56px;
   align-items: center;
   gap: 18px;
   margin-bottom: 18px;
@@ -72,7 +72,7 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: clamp(1.65rem, 3.8vw, 3rem);
+  font-size: clamp(1.35rem, 3vw, 2.25rem);
   line-height: 1.1;
   font-weight: 800;
   white-space: nowrap;
@@ -89,6 +89,7 @@ h3 {
 }
 
 .service-hours {
+  grid-column: 1 / -1;
   padding: 14px 16px;
   border-radius: 8px;
   background: var(--primary-soft);
@@ -96,7 +97,9 @@ h3 {
 }
 
 .service-hours strong {
+  display: block;
   line-height: 1.6;
+  text-align: center;
 }
 
 .service-hours span,
@@ -196,6 +199,12 @@ h3 {
   background: var(--surface-2);
 }
 
+#receiptButton {
+  border: 0;
+  background: var(--primary);
+  color: #fff;
+}
+
 .login-grid,
 .credentials-grid {
   grid-template-columns: 1fr;
@@ -271,7 +280,7 @@ select:focus {
 }
 
 .login-button {
-  justify-self: start;
+  justify-self: end;
   display: inline-grid;
   place-items: center;
   width: 46px;
@@ -507,10 +516,40 @@ select:focus {
   background: #fff;
 }
 
+.bookable-time {
+  cursor: pointer;
+}
+
 .bookable-time.selected {
   border-color: var(--primary);
   background: var(--primary-soft);
   box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.14);
+}
+
+.appointment-cell {
+  display: grid;
+  gap: 0;
+  min-width: 150px;
+  white-space: normal;
+}
+
+.appointment-cell span {
+  display: block;
+  padding: 5px 8px;
+}
+
+.appointment-cell span:nth-child(1),
+.appointment-cell span:nth-child(3) {
+  background: var(--gray);
+  border-radius: 5px;
+}
+
+.appointment-cell span:nth-child(2) {
+  direction: ltr;
+}
+
+tr:has(.appointment-cell) td {
+  transition: opacity 0.15s ease, filter 0.15s ease;
 }
 
 .suspended-slot {
@@ -569,31 +608,64 @@ select:focus {
   color: var(--muted);
 }
 
+.attended-row {
+  opacity: 0.55;
+  filter: grayscale(0.8);
+  background: #f2f4f5;
+}
+
+.attended-row .table-actions {
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .receipt-result {
   margin-top: 12px;
 }
 
 .receipt-card {
   display: grid;
-  grid-template-columns: 1fr minmax(180px, 260px) auto;
   gap: 12px;
-  align-items: end;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
 }
 
-.receipt-card strong,
-.receipt-card span {
-  display: block;
-  margin-bottom: 5px;
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.receipt-file span {
-  display: block;
-  margin-bottom: 8px;
+.receipt-table th,
+.receipt-table td {
+  padding: 10px;
+  border: 1px solid var(--line);
+  text-align: right;
+}
+
+.receipt-table th {
+  width: 140px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.receipt-note {
+  margin: 0;
   font-weight: 800;
+  color: var(--primary-dark);
+}
+
+.receipt-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-height: 44px;
+  border-radius: 6px;
+  padding: 0 18px;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .disabled-link {
@@ -609,7 +681,7 @@ select:focus {
   }
 
   .login-button {
-    justify-self: stretch;
+    justify-self: end;
   }
 
   .service-hours {
