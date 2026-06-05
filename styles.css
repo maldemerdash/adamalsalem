@@ -344,6 +344,30 @@ select:focus {
   color: var(--danger);
 }
 
+.danger-solid {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--danger);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.success-action {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
 .confirm-button {
   border: 1px solid rgba(15, 118, 110, 0.28);
   background: var(--primary);
@@ -387,9 +411,11 @@ select:focus {
 .secondary-action:hover,
 .outline-action:hover,
 .danger-button:hover,
+.danger-solid:hover,
 .confirm-button:hover,
 .whatsapp-button:hover,
 .attendance-button:hover,
+.success-action:hover,
 .login-button:hover {
   filter: brightness(0.96);
 }
@@ -499,12 +525,6 @@ select:focus {
   margin: 6px 0 16px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-}
-
-.list-actions .secondary-action,
-.day-group-title .secondary-action {
-  background: var(--primary);
-  color: #fff;
 }
 
 .admin-tabs {

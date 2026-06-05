@@ -642,12 +642,12 @@ function renderAvailableSlots() {
     const titleText = document.createElement("div");
     titleText.className = "day-title-text";
     titleText.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
-    const allDaySuspended = group.slots.every((slot) => slot.suspended);
+    const hasDaySuspendedSlot = group.slots.some((slot) => slot.suspended);
     const dayButton = document.createElement("button");
-    dayButton.className = "secondary-action compact-button";
+    dayButton.className = `${hasDaySuspendedSlot ? "success-action" : "danger-solid"} compact-button`;
     dayButton.type = "button";
-    dayButton.textContent = allDaySuspended ? "إتاحة المواعيد لهذا اليوم" : "تعليق مواعيد كامل اليوم";
-    dayButton.addEventListener("click", () => toggleDaySuspension(group.date, !allDaySuspended));
+    dayButton.textContent = hasDaySuspendedSlot ? "إتاحة مواعيد هذا اليوم" : "تعليق مواعيد هذا اليوم";
+    dayButton.addEventListener("click", () => toggleDaySuspension(group.date, !hasDaySuspendedSlot));
     title.append(titleText, dayButton);
 
     const times = document.createElement("div");
@@ -692,8 +692,9 @@ function getManagedGeneratedSlotIds() {
 
 function updateWeekButton() {
   const weekSlots = getCurrentWeekOpenSlots();
-  const hasOpenSlot = weekSlots.some((slot) => !slot.suspended);
-  suspendWeekButton.textContent = hasOpenSlot ? "تعليق كامل مواعيد هذا الأسبوع" : "إعادة إتاحة المواعيد لهذا الأسبوع";
+  const hasSuspendedSlot = weekSlots.some((slot) => slot.suspended);
+  suspendWeekButton.className = hasSuspendedSlot ? "success-action" : "danger-solid";
+  suspendWeekButton.textContent = hasSuspendedSlot ? "إتاحة كامل أيام الأسبوع" : "تعليق كامل مواعيد الأسبوع";
 }
 
 function renderBookingsTable() {
@@ -733,7 +734,7 @@ function renderBookingsTable() {
       appendIconButton(actions, "attendance-button", "تم الحضور", ICONS.attend, () => markAttended(booking.id));
     }
     if (!booking.attended) {
-      appendIconButton(actions, "danger-button", "إلغاء الحجز", ICONS.cancel, () => cancelBooking(booking.id));
+      appendIconButton(actions, "danger-button", "إلغاء الحجز", ICONS.cancel, () => cancelBooking(booking));
     }
     reservedSlots.append(row);
   });
@@ -888,12 +889,12 @@ async function toggleDaySuspension(date, suspended) {
 
 async function toggleCurrentWeekSuspension() {
   const weekSlots = getCurrentWeekOpenSlots();
-  const hasOpenSlot = weekSlots.some((slot) => !slot.suspended);
-  const targetSuspended = hasOpenSlot;
+  const hasSuspendedSlot = weekSlots.some((slot) => slot.suspended);
+  const targetSuspended = !hasSuspendedSlot;
   const slotsToUpdate = weekSlots.filter((slot) => slot.suspended !== targetSuspended);
 
   if (!slotsToUpdate.length) {
-    showToast(hasOpenSlot ? "لا توجد مواعيد قابلة للتعليق في هذا الأسبوع." : "لا توجد مواعيد معلقة لإتاحتها في هذا الأسبوع.");
+    showToast(targetSuspended ? "لا توجد مواعيد قابلة للتعليق في هذا الأسبوع." : "لا توجد مواعيد معلقة لإتاحتها في هذا الأسبوع.");
     return;
   }
 
@@ -929,8 +930,15 @@ async function markAttended(bookingId) {
   await refreshAll();
 }
 
-async function cancelBooking(bookingId) {
-  await api(`appointment_bookings?id=eq.${bookingId}`, { method: "DELETE" });
+function getCancellationWhatsappUrl(booking) {
+  const phone = toWhatsappPhone(booking.phone);
+  const message = encodeURIComponent("تم إلغاء الحجز لعدم التحويل وإرسال الإيصال");
+  return `https://wa.me/${phone}?text=${message}`;
+}
+
+async function cancelBooking(booking) {
+  window.open(getCancellationWhatsappUrl(booking), "_blank", "noopener,noreferrer");
+  await api(`appointment_bookings?id=eq.${booking.id}`, { method: "DELETE" });
   showToast("تم إلغاء الحجز وإرجاع الموعد لقائمة المتاح.");
   await refreshAll();
 }
