@@ -692,9 +692,11 @@ function getManagedGeneratedSlotIds() {
 
 function updateWeekButton() {
   const weekSlots = getCurrentWeekOpenSlots();
+  const hasOpenSlot = weekSlots.some((slot) => !slot.suspended);
   const hasSuspendedSlot = weekSlots.some((slot) => slot.suspended);
-  suspendWeekButton.className = hasSuspendedSlot ? "success-action" : "danger-solid";
-  suspendWeekButton.textContent = hasSuspendedSlot ? "إتاحة كامل أيام الأسبوع" : "تعليق كامل مواعيد الأسبوع";
+  const shouldEnable = !hasOpenSlot && hasSuspendedSlot;
+  suspendWeekButton.className = shouldEnable ? "success-action" : "danger-solid";
+  suspendWeekButton.textContent = shouldEnable ? "إعادة إتاحة مواعيد كامل الأسبوع" : "تعليق كامل مواعيد الأسبوع";
 }
 
 function renderBookingsTable() {
@@ -889,8 +891,8 @@ async function toggleDaySuspension(date, suspended) {
 
 async function toggleCurrentWeekSuspension() {
   const weekSlots = getCurrentWeekOpenSlots();
-  const hasSuspendedSlot = weekSlots.some((slot) => slot.suspended);
-  const targetSuspended = !hasSuspendedSlot;
+  const hasOpenSlot = weekSlots.some((slot) => !slot.suspended);
+  const targetSuspended = hasOpenSlot;
   const slotsToUpdate = weekSlots.filter((slot) => slot.suspended !== targetSuspended);
 
   if (!slotsToUpdate.length) {

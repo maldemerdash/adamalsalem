@@ -798,10 +798,12 @@ tr:has(.appointment-cell) td {
 
 .toast {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 50;
-  max-width: min(420px, calc(100% - 32px));
+  width: max-content;
+  max-width: min(560px, calc(100% - 24px));
   padding: 14px 18px;
   border: 1px solid rgba(24, 121, 78, 0.2);
   border-radius: 8px;
@@ -810,6 +812,7 @@ tr:has(.appointment-cell) td {
   box-shadow: var(--shadow);
   font-weight: 800;
   line-height: 1.7;
+  text-align: center;
 }
 
 .choice-modal {
