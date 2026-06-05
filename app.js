@@ -66,6 +66,7 @@ const backToBookingButton = document.querySelector("#backToBookingButton");
 const logoutButton = document.querySelector("#logoutButton");
 const showCredentialsButton = document.querySelector("#showCredentialsButton");
 const regenerateSlotsButton = document.querySelector("#regenerateSlotsButton");
+const suspendWeekButton = document.querySelector("#suspendWeekButton");
 const availableSlots = document.querySelector("#availableSlots");
 const reservedSlots = document.querySelector("#reservedSlots");
 const availableCount = document.querySelector("#availableCount");
@@ -475,7 +476,16 @@ function renderBookingOptions() {
 
     const title = document.createElement("div");
     title.className = "day-group-title";
-    title.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
+    const titleText = document.createElement("div");
+    titleText.className = "day-title-text";
+    titleText.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
+    const allDaySuspended = group.slots.every((slot) => slot.suspended);
+    const dayButton = document.createElement("button");
+    dayButton.className = allDaySuspended ? "attendance-button compact-button" : "outline-action compact-button";
+    dayButton.type = "button";
+    dayButton.textContent = allDaySuspended ? "إتاحة مواعيد اليوم" : "تعليق مواعيد كامل اليوم";
+    dayButton.addEventListener("click", () => toggleDaySuspension(group.date, !allDaySuspended));
+    title.append(titleText, dayButton);
 
     const times = document.createElement("div");
     times.className = "time-grid";
@@ -773,6 +783,51 @@ async function toggleSlotSuspension(slotId, suspended) {
   await refreshAll();
 }
 
+async function setSlotsSuspension(slotIds, suspended) {
+  for (const slotId of slotIds) {
+    await api(`appointment_slots?id=eq.${encodeURIComponent(slotId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: { suspended }
+    });
+  }
+}
+
+async function toggleDaySuspension(date, suspended) {
+  const daySlots = getAdminOpenSlots()
+    .filter((slot) => slot.date === date)
+    .filter((slot) => slot.suspended !== suspended);
+
+  if (!daySlots.length) {
+    showToast(suspended ? "جميع مواعيد هذا اليوم معلقة بالفعل." : "جميع مواعيد هذا اليوم متاحة بالفعل.");
+    return;
+  }
+
+  await setSlotsSuspension(daySlots.map((slot) => slot.id), suspended);
+  showToast(suspended ? "تم تعليق مواعيد اليوم كاملة." : "تمت إتاحة مواعيد اليوم كاملة.");
+  await refreshAll();
+}
+
+async function suspendCurrentWeekSlots() {
+  const weekStart = getWeekStart();
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const weekStartKey = toDateKey(weekStart);
+  const weekEndKey = toDateKey(weekEnd);
+  const weekSlots = getAdminOpenSlots()
+    .filter((slot) => slot.date >= weekStartKey && slot.date <= weekEndKey)
+    .filter((slot) => !slot.suspended);
+
+  if (!weekSlots.length) {
+    showToast("لا توجد مواعيد متاحة غير معلقة في هذا الأسبوع.");
+    return;
+  }
+
+  await setSlotsSuspension(weekSlots.map((slot) => slot.id), true);
+  showToast("تم تعليق كامل مواعيد هذا الأسبوع.");
+  await refreshAll();
+}
+
 async function confirmBooking(bookingId) {
   await refreshAll();
 
@@ -809,6 +864,7 @@ async function cancelBooking(bookingId) {
 adminLoginButton.addEventListener("click", () => showPanel("admin"));
 backToBookingButton.addEventListener("click", () => showPanel("booking"));
 regenerateSlotsButton.addEventListener("click", regenerateWeeklySlots);
+suspendWeekButton.addEventListener("click", suspendCurrentWeekSlots);
 receiptButton.addEventListener("click", () => {
   receiptPanel.classList.toggle("hidden");
 });

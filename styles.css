@@ -473,6 +473,14 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .admin-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -550,6 +558,7 @@ select:focus {
 
 .day-group-title {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
@@ -557,7 +566,13 @@ select:focus {
   color: var(--primary-dark);
 }
 
-.day-group-title span {
+.day-title-text {
+  display: grid;
+  gap: 4px;
+}
+
+.day-group-title span,
+.day-title-text span {
   direction: ltr;
 }
 
@@ -783,6 +798,14 @@ tr:has(.appointment-cell) td {
   .admin-head,
   .list-head {
     display: grid;
+  }
+
+  .list-actions {
+    justify-content: stretch;
+  }
+
+  .list-actions button {
+    width: 100%;
   }
 }
 
