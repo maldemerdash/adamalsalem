@@ -936,11 +936,22 @@ async function markAttended(bookingId) {
 function getCancellationWhatsappUrl(booking) {
   const phone = toWhatsappPhone(booking.phone);
   const message = encodeURIComponent("تم إلغاء الحجز لعدم التحويل وإرسال الإيصال");
-  return `https://wa.me/${phone}?text=${message}`;
+  return `https://api.whatsapp.com/send?phone=${phone}&text=${message}`;
+}
+
+function openExternalMessage(url) {
+  const openedWindow = window.open("about:blank", "_blank");
+  if (openedWindow) {
+    openedWindow.location.href = url;
+    openedWindow.opener = null;
+    return;
+  }
+
+  window.location.href = url;
 }
 
 async function cancelBooking(booking) {
-  window.open(getCancellationWhatsappUrl(booking), "_blank", "noopener,noreferrer");
+  openExternalMessage(getCancellationWhatsappUrl(booking));
   await api(`appointment_bookings?id=eq.${booking.id}`, { method: "DELETE" });
   showToast("تم إلغاء الحجز وإرجاع الموعد لقائمة المتاح.");
   await refreshAll();
