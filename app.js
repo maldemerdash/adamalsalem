@@ -123,6 +123,8 @@ const adminTabs = document.querySelectorAll(".admin-tab");
 const adminAvailableView = document.querySelector("#adminAvailableView");
 const adminBookingsView = document.querySelector("#adminBookingsView");
 const bookingFilterButtons = document.querySelectorAll(".booking-filter-button");
+const availableScheduleTabs = document.querySelectorAll(".available-schedule-tab");
+const availableScheduleViews = document.querySelectorAll("[data-available-schedule-view]");
 const toast = document.querySelector("#toast");
 let toastTimer = null;
 
@@ -339,7 +341,7 @@ function appendPrayerBreaks(parent, dateKey) {
   container.className = "prayer-breaks";
   const [maghrib, isha] = breaks;
   const note = document.createElement("p");
-  note.textContent = `لا يوجد مواعيد من الساعة ${formatTime(minutesToTime(maghrib.start))} إلى الساعة ${formatTime(minutesToTime(maghrib.end))} لأداء صلاة المغرب، ومن الساعة ${formatTime(minutesToTime(isha.start))} إلى الساعة ${formatTime(minutesToTime(isha.end))} لأداء صلاة العشاء.`;
+  note.textContent = `توقف المواعيد للصلاة: المغرب ${formatTime(minutesToTime(maghrib.start))}–${formatTime(minutesToTime(maghrib.end))}، العشاء ${formatTime(minutesToTime(isha.start))}–${formatTime(minutesToTime(isha.end))}.`;
   container.append(note);
   parent.append(container);
 }
@@ -1618,6 +1620,21 @@ bookingFilterButtons.forEach((button) => {
       item.classList.toggle("active", item === button);
     });
     renderBookingsTable();
+  });
+});
+
+availableScheduleTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    const selectedSchedule = tab.dataset.availableSchedule;
+    availableScheduleTabs.forEach((item) => {
+      item.classList.toggle("active", item === tab);
+    });
+    availableScheduleViews.forEach((view) => {
+      view.classList.toggle(
+        "active",
+        view.dataset.availableScheduleView === selectedSchedule
+      );
+    });
   });
 });
 

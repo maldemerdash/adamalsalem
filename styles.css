@@ -712,18 +712,43 @@ select:focus {
   gap: 14px;
 }
 
-.admin-schedule-columns {
+.available-schedule-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--gray);
+}
+
+.available-schedule-tab {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.available-schedule-tab.active {
+  background: #fff;
+  color: var(--primary-dark);
+  box-shadow: 0 1px 8px rgba(31, 41, 51, 0.08);
 }
 
 .admin-schedule-panel {
+  display: none;
   min-width: 0;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfc;
+}
+
+.admin-schedule-panel.active {
+  display: block;
 }
 
 .admin-schedule-panel h4 {
@@ -1120,10 +1145,6 @@ tr:has(.appointment-cell) td {
     display: grid;
   }
 
-  .admin-schedule-columns {
-    grid-template-columns: 1fr;
-  }
-
   .list-actions {
     justify-content: stretch;
   }
@@ -1148,6 +1169,7 @@ tr:has(.appointment-cell) td {
   .form-section-grid,
   .stats-grid,
   .admin-tabs,
+  .available-schedule-tabs,
   .booking-support-actions,
   .map-actions {
     grid-template-columns: 1fr;

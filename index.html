@@ -263,12 +263,16 @@
                 <button id="regenerateSlotsButton" class="secondary-action" type="button">إعادة المواعيد الأسبوعية</button>
                 <button id="suspendWeekButton" class="danger-solid" type="button">تعليق كامل مواعيد الأسبوع</button>
               </div>
-              <div class="admin-schedule-columns">
-                <section class="admin-schedule-panel">
+              <div class="available-schedule-tabs" role="tablist" aria-label="نوع المواعيد المتاحة">
+                <button class="available-schedule-tab active" type="button" data-available-schedule="internal">مواعيد مدينة حائل</button>
+                <button class="available-schedule-tab" type="button" data-available-schedule="external">مواعيد خارج حائل</button>
+              </div>
+              <div class="admin-schedule-views">
+                <section class="admin-schedule-panel active" data-available-schedule-view="internal">
                   <h4>مواعيد مدينة حائل - أسبوعان</h4>
                   <div id="internalAvailableSlots" class="grouped-slots"></div>
                 </section>
-                <section class="admin-schedule-panel">
+                <section class="admin-schedule-panel" data-available-schedule-view="external">
                   <h4>مواعيد خارج حائل - الشهر الحالي</h4>
                   <div id="externalAvailableSlots" class="grouped-slots"></div>
                 </section>
