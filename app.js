@@ -1,10 +1,8 @@
 const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
-const SCHEDULE_VERSION = "weekly-v7";
+const SCHEDULE_VERSION = "weekly-v8";
 const INTERNAL_START_HOUR = 17;
-const INTERNAL_END_HOUR = 21;
-const EXTERNAL_START_HOUR = 8;
-const EXTERNAL_END_HOUR = 21;
+const INTERNAL_LAST_SLOT_MINUTES = 21 * 60 + 30;
 const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
 const RECEIPT_WHATSAPP_PHONE = "966555707854";
 const HAIL_COORDINATES = { lat: 27.5114, lng: 41.7208 };
@@ -14,7 +12,7 @@ const INTERNAL_WORK_DAYS = [
   { offset: 2, name: "الثلاثاء" },
   { offset: 3, name: "الأربعاء" }
 ];
-const EXTERNAL_WORK_DAYS = [
+const VISIT_WORK_DAYS = [
   { offset: 4, name: "الخميس" },
   { offset: 5, name: "الجمعة" },
   { offset: 6, name: "السبت" }
@@ -29,15 +27,25 @@ const MESSAGES = {
     if (booking.booking_type === "external") {
       return [
         boldName ? `مرحبًا ${boldName}` : "مرحبًا",
-        "تم تأكيد موعد الزيارة خارج منطقة حائل.",
+        "تم تأكيد باقة الزيارة خارج مدينة حائل.",
         `المنطقة: ${booking.region || booking.city}`,
         `المدينة: ${booking.visit_city || "-"}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`,
-        `اليوم: ${boldDay}`,
-        `التاريخ: ${formatCombinedDate(booking.slot.date)}`,
-        `الساعة: ${boldTime}`,
+        `الباقة: ${formatDateRange(booking.booking_start_date, booking.booking_end_date)}`,
         booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
         booking.alternate_phone ? `رقم التواصل عند الوصول: ${booking.alternate_phone}` : null
+      ].filter(Boolean).join("\n");
+    }
+
+    if (booking.booking_type === "home") {
+      return [
+        boldName ? `مرحبًا ${boldName}` : "مرحبًا",
+        "تم تأكيد الزيارة المنزلية داخل مدينة حائل.",
+        `الزيارة: ${whatsappBold(booking.appointment_title || booking.slot.title || "زيارة منزلية")}`,
+        `اليوم: ${boldDay}`,
+        `التاريخ: ${formatCombinedDate(booking.slot.date)}`,
+        `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)} إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`)}`,
+        `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`
       ].filter(Boolean).join("\n");
     }
 
@@ -61,8 +69,16 @@ let selectedSlotId = "";
 let authSession = null;
 let isAdmin = false;
 let visitCities = [];
+let pricing = {
+  general_price: 100,
+  home_visit_price: 300,
+  external_near_price: 1500,
+  external_far_price: 3500
+};
+let visitTemplates = [];
 let prayerTimesReady = false;
 let adminBookingFilter = "all";
+let selectedBookingDate = "";
 let selectedCustomerLocation = null;
 let mapPicker = null;
 let mapPickerMarker = null;
@@ -82,6 +98,7 @@ const visitCityField = document.querySelector("#visitCityField");
 const visitCityInput = document.querySelector("#visitCityInput");
 const homeSessionField = document.querySelector("#homeSessionField");
 const homeSessionInput = document.querySelector("#homeSessionInput");
+const userDayChoices = document.querySelector("#userDayChoices");
 const customerLocationField = document.querySelector("#customerLocationField");
 const useCurrentLocationButton = document.querySelector("#useCurrentLocationButton");
 const chooseLocationButton = document.querySelector("#chooseLocationButton");
@@ -115,6 +132,7 @@ const logoutButton = document.querySelector("#logoutButton");
 const regenerateSlotsButton = document.querySelector("#regenerateSlotsButton");
 const suspendWeekButton = document.querySelector("#suspendWeekButton");
 const internalAvailableSlots = document.querySelector("#internalAvailableSlots");
+const homeAvailableSlots = document.querySelector("#homeAvailableSlots");
 const externalAvailableSlots = document.querySelector("#externalAvailableSlots");
 const reservedSlots = document.querySelector("#reservedSlots");
 const availableCount = document.querySelector("#availableCount");
@@ -122,9 +140,24 @@ const reservedCount = document.querySelector("#reservedCount");
 const adminTabs = document.querySelectorAll(".admin-tab");
 const adminAvailableView = document.querySelector("#adminAvailableView");
 const adminBookingsView = document.querySelector("#adminBookingsView");
+const adminSettingsView = document.querySelector("#adminSettingsView");
 const bookingFilterButtons = document.querySelectorAll(".booking-filter-button");
 const availableScheduleTabs = document.querySelectorAll(".available-schedule-tab");
 const availableScheduleViews = document.querySelectorAll("[data-available-schedule-view]");
+const visitAdminTabs = document.querySelectorAll(".visit-admin-tab");
+const visitAdminViews = document.querySelectorAll("[data-visit-admin-view]");
+const pricingSettingsForm = document.querySelector("#pricingSettingsForm");
+const generalPriceInput = document.querySelector("#generalPriceInput");
+const homeVisitPriceInput = document.querySelector("#homeVisitPriceInput");
+const externalNearPriceInput = document.querySelector("#externalNearPriceInput");
+const externalFarPriceInput = document.querySelector("#externalFarPriceInput");
+const visitTemplateForm = document.querySelector("#visitTemplateForm");
+const visitTemplateId = document.querySelector("#visitTemplateId");
+const visitTemplateTitle = document.querySelector("#visitTemplateTitle");
+const visitTemplateStart = document.querySelector("#visitTemplateStart");
+const visitTemplateEnd = document.querySelector("#visitTemplateEnd");
+const cancelTemplateEditButton = document.querySelector("#cancelTemplateEditButton");
+const visitTemplateList = document.querySelector("#visitTemplateList");
 const toast = document.querySelector("#toast");
 let toastTimer = null;
 
@@ -250,7 +283,10 @@ function getSlotDateTime(slot) {
 }
 
 function getSlotEndDateTime(slot) {
-  return new Date(getSlotDateTime(slot).getTime() + 30 * 60 * 1000);
+  const endTime = slot.end_time || minutesToTime(
+    Number(slot.time.slice(0, 2)) * 60 + Number(slot.time.slice(3, 5)) + 30
+  );
+  return new Date(`${slot.date}T${endTime}:00`);
 }
 
 function parsePrayerTime(value) {
@@ -348,34 +384,71 @@ function appendPrayerBreaks(parent, dateKey) {
 
 function buildWeeklySlots(weekStart) {
   const generated = [];
-
-  const addSlots = (days, startHour, endHour, slotType) => days.forEach((day) => {
+  INTERNAL_WORK_DAYS.forEach((day) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + day.offset);
     const dateKey = toDateKey(date);
 
-    for (let hour = startHour; hour < endHour; hour += 1) {
-      ["00", "30"].forEach((minute) => {
-        const time = `${pad(hour)}:${minute}`;
-        if (slotType === "internal" && isPrayerBlocked(dateKey, time)) return;
-        generated.push({
-          id: `${SCHEDULE_VERSION}:${slotType}:${dateKey}T${time}`,
-          day: day.name,
-          date: dateKey,
-          time,
-          source: "auto",
-          suspended: false,
-          slot_type: slotType,
-          schedule_version: SCHEDULE_VERSION
-        });
+    if (!prayerTimesReady) return;
+    for (let minutes = INTERNAL_START_HOUR * 60; minutes <= INTERNAL_LAST_SLOT_MINUTES; minutes += 30) {
+      const time = minutesToTime(minutes);
+      if (isPrayerBlocked(dateKey, time)) continue;
+      generated.push({
+        id: `${SCHEDULE_VERSION}:internal:${dateKey}T${time}`,
+        day: day.name,
+        date: dateKey,
+        time,
+        end_time: minutesToTime(minutes + 30),
+        title: "موعد عام داخل مدينة حائل",
+        package_end_date: dateKey,
+        source: "auto",
+        suspended: false,
+        slot_type: "internal",
+        schedule_version: SCHEDULE_VERSION
       });
     }
   });
 
-  if (prayerTimesReady) {
-    addSlots(INTERNAL_WORK_DAYS, INTERNAL_START_HOUR, INTERNAL_END_HOUR, "internal");
-  }
-  addSlots(EXTERNAL_WORK_DAYS, EXTERNAL_START_HOUR, EXTERNAL_END_HOUR, "external");
+  VISIT_WORK_DAYS.forEach((day) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + day.offset);
+    const dateKey = toDateKey(date);
+
+    visitTemplates.forEach((template) => {
+      generated.push({
+        id: `${SCHEDULE_VERSION}:home:${template.id}:${dateKey}`,
+        day: day.name,
+        date: dateKey,
+        time: template.start_time,
+        end_time: template.end_time,
+        title: template.title,
+        package_end_date: dateKey,
+        source: "template",
+        suspended: false,
+        slot_type: "home",
+        schedule_version: SCHEDULE_VERSION
+      });
+    });
+  });
+
+  const packageStart = new Date(weekStart);
+  packageStart.setDate(weekStart.getDate() + 4);
+  const packageEnd = new Date(packageStart);
+  packageEnd.setDate(packageStart.getDate() + 2);
+  const packageStartKey = toDateKey(packageStart);
+  generated.push({
+    id: `${SCHEDULE_VERSION}:external:${packageStartKey}`,
+    day: "الخميس والجمعة والسبت",
+    date: packageStartKey,
+    time: "00:00",
+    end_time: "23:59",
+    title: "باقة زيارة خارج مدينة حائل",
+    package_end_date: toDateKey(packageEnd),
+    source: "package",
+    suspended: false,
+    slot_type: "external",
+    schedule_version: SCHEDULE_VERSION
+  });
 
   return generated;
 }
@@ -419,6 +492,12 @@ function formatCombinedDate(value) {
 
 function formatDate(value) {
   return formatCombinedDate(value);
+}
+
+function formatDateRange(start, end) {
+  if (!start) return "-";
+  if (!end || start === end) return formatCombinedDate(start);
+  return `${formatCombinedDate(start)} إلى ${formatCombinedDate(end)}`;
 }
 
 function formatTime(value) {
@@ -483,9 +562,12 @@ function getReceiptWhatsappUrl(booking) {
   const message = encodeURIComponent([
     `تم إرفاق إيصال للموعد رقم ${booking.booking_number}`,
     booking.name ? `باسم ${booking.name}` : null,
-    `اليوم: ${booking.slot.day}`,
-    `التاريخ: ${booking.slot.date}`,
-    `الساعة: ${formatTime(booking.slot.time)}`
+    booking.booking_type === "external"
+      ? `الباقة: ${formatDateRange(booking.booking_start_date, booking.booking_end_date)}`
+      : `اليوم والتاريخ: ${booking.slot.day} ${formatCombinedDate(booking.slot.date)}`,
+    booking.booking_type === "external"
+      ? null
+      : `الوقت: ${formatTime(booking.appointment_start_time || booking.slot.time)}${booking.appointment_end_time || booking.slot.end_time ? ` إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}` : ""}`
   ].filter(Boolean).join("\n"));
   return `https://wa.me/${RECEIPT_WHATSAPP_PHONE}?text=${message}`;
 }
@@ -494,7 +576,8 @@ function getExternalBookingWhatsappUrl(result) {
   const message = encodeURIComponent([
     `رقم الحجز: ${result.booking_number}`,
     result.name ? `الاسم: ${whatsappBold(result.name)}` : null,
-    `تم اختيار موعد خارج منطقة حائل في ${result.visit_city} - ${result.region}`,
+    `تم اختيار باقة زيارة خارج مدينة حائل في ${result.visit_city} - ${result.region}`,
+    `الباقة: ${formatDateRange(result.booking_start_date, result.booking_end_date)}`,
     `قيمة الزيارة: ${whatsappBold(`${formatPrice(result.visit_price)} ريال`)}`,
     result.customer_location_url ? `موقع الزيارة: ${result.customer_location_url}` : null,
     result.alternate_phone ? `رقم التواصل عند الوصول: ${result.alternate_phone}` : null,
@@ -521,6 +604,19 @@ async function loadVisitCities() {
   }
 }
 
+async function loadPublicConfig() {
+  try {
+    const result = await api("rpc/get_appointment_public_config", {
+      method: "POST",
+      body: {}
+    });
+    if (result?.pricing) pricing = result.pricing;
+    visitTemplates = Array.isArray(result?.templates) ? result.templates : [];
+  } catch (error) {
+    console.error("إعدادات الأسعار والقوالب تحتاج إلى تشغيل ملف Supabase المحدث.", error);
+  }
+}
+
 function renderVisitCityOptions() {
   const selectedRegion = regionInput.value;
   visitCityInput.innerHTML = '<option value="">اختر المدينة</option>';
@@ -536,9 +632,21 @@ function renderVisitCityOptions() {
 }
 
 function getSelectedVisitCity() {
-  return visitCities.find((item) => {
+  const city = visitCities.find((item) => {
     return item.region === regionInput.value && item.city === visitCityInput.value;
-  }) || null;
+  });
+  if (!city) return null;
+  return {
+    ...city,
+    visit_price: Number(city.distance_km) <= 100
+      ? pricing.external_near_price
+      : pricing.external_far_price
+  };
+}
+
+function getCurrentBookingType() {
+  if (locationTypeInput.value === "external") return "external";
+  return homeSessionInput.checked ? "home" : "internal";
 }
 
 function getRecoveryWhatsappUrl(phone, bookingNumber) {
@@ -631,51 +739,71 @@ function getAvailableSlots() {
   const now = new Date();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const selectedType = locationTypeInput.value;
-  const lastAvailableDate = selectedType === "external"
-    ? new Date(today.getFullYear(), today.getMonth() + 1, 0)
-    : new Date(today);
-  if (selectedType === "internal") {
-    lastAvailableDate.setDate(today.getDate() + 4);
-  }
+  const selectedType = getCurrentBookingType();
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
-  return slots
+  let available = slots
+    .filter((slot) => slot.schedule_version === SCHEDULE_VERSION)
     .filter((slot) => !bookedIds.has(slot.id))
     .filter((slot) => !slot.suspended)
     .filter((slot) => slot.slot_type === selectedType)
     .filter((slot) => {
       const date = new Date(`${slot.date}T00:00:00`);
-      return date >= today && date <= lastAvailableDate;
+      return date >= today && (selectedType === "internal" || date <= monthEnd);
     })
     .filter((slot) => slot.slot_type !== "internal" || !isPrayerBlocked(slot.date, slot.time))
-    .filter((slot) => getSlotEndDateTime(slot) > now)
+    .filter((slot) => slot.slot_type !== "internal" || getSlotEndDateTime(slot) > now)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+
+  if (selectedType === "internal") {
+    const firstFourDates = [...new Set(available.map((slot) => slot.date))].slice(0, 4);
+    available = available.filter((slot) => firstFourDates.includes(slot.date));
+  }
+  return available;
 }
 
 function getAdminOpenSlots(slotType = null) {
   const now = new Date();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const internalEnd = new Date(today);
-  internalEnd.setDate(today.getDate() + 13);
   const externalEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
-  const externalBookedDates = new Set(
-    getReservedSlots()
-      .filter((booking) => booking.booking_type === "external")
-      .map((booking) => booking.slot.date)
-  );
-  return slots
+  const visitBookings = getReservedSlots().filter((booking) => {
+    return booking.booking_type === "home" || booking.booking_type === "external";
+  });
+  let available = slots
+    .filter((slot) => slot.schedule_version === SCHEDULE_VERSION)
     .filter((slot) => !bookedIds.has(slot.id))
     .filter((slot) => !slotType || slot.slot_type === slotType)
-    .filter((slot) => slot.slot_type !== "external" || !externalBookedDates.has(slot.date))
+    .filter((slot) => {
+      if (!["home", "external"].includes(slot.slot_type)) return true;
+      const slotStart = slot.date;
+      const slotEnd = slot.package_end_date || slot.date;
+      return !visitBookings.some((booking) => {
+        const bookingStart = booking.booking_start_date || booking.slot.date;
+        const bookingEnd = booking.booking_end_date || bookingStart;
+        const overlaps = bookingStart <= slotEnd && bookingEnd >= slotStart;
+        if (slot.slot_type === "external") return overlaps;
+        return booking.booking_type === "external" && overlaps;
+      });
+    })
     .filter((slot) => {
       const slotDate = new Date(`${slot.date}T00:00:00`);
-      return slotDate >= today && slotDate <= (slot.slot_type === "external" ? externalEnd : internalEnd);
+      return slotDate >= today && (slot.slot_type === "internal" || slotDate <= externalEnd);
     })
     .filter((slot) => slot.slot_type !== "internal" || !isPrayerBlocked(slot.date, slot.time))
     .filter((slot) => getSlotEndDateTime(slot) > now)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+
+  if (!slotType || slotType === "internal") {
+    const internalDates = [...new Set(
+      available.filter((slot) => slot.slot_type === "internal").map((slot) => slot.date)
+    )].slice(0, 8);
+    available = available.filter((slot) => {
+      return slot.slot_type !== "internal" || internalDates.includes(slot.date);
+    });
+  }
+  return available;
 }
 
 function groupSlotsByDate(rows) {
@@ -904,7 +1032,7 @@ function showBookingConfirmation(result) {
     const wrapper = document.createElement("div");
     wrapper.className = "external-message";
     const text = document.createElement("p");
-    text.textContent = `تم تسجيل طلب الموعد في ${result.visit_city}. قيمة الزيارة: ${formatPrice(result.visit_price)} ريال.`;
+    text.textContent = `تم تسجيل طلب باقة الزيارة في ${result.visit_city}. قيمة الزيارة: ${formatPrice(result.visit_price)} ريال.`;
     const link = document.createElement("a");
     link.className = "whatsapp-button external-whatsapp";
     link.textContent = "إرسال طلب الموعد عبر واتساب";
@@ -918,7 +1046,9 @@ function showBookingConfirmation(result) {
 
   const text = document.createElement("div");
   text.className = "payment-text";
-  const amount = result.home_session ? 300 : 100;
+  const amount = Number(result.visit_price || (
+    result.booking_type === "home" ? pricing.home_visit_price : pricing.general_price
+  ));
   [`لتأكيد الحجز يرجى تحويل مبلغ ${amount} ريال`, "على الحساب البنكي التالي:", "SA4480000456608016164286"].forEach((line) => {
     const p = document.createElement("p");
     p.textContent = line;
@@ -963,9 +1093,9 @@ function showPanel(name) {
 }
 
 function showAdminView(name) {
-  const isBookings = name === "bookings";
-  adminAvailableView.classList.toggle("active", !isBookings);
-  adminBookingsView.classList.toggle("active", isBookings);
+  adminAvailableView.classList.toggle("active", name === "available");
+  adminBookingsView.classList.toggle("active", name === "bookings");
+  adminSettingsView.classList.toggle("active", name === "settings");
   adminTabs.forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.adminView === name);
   });
@@ -979,6 +1109,7 @@ function renderAdminAccess() {
 function renderBookingOptions() {
   const available = getAvailableSlots();
   userSlots.innerHTML = "";
+  userDayChoices.innerHTML = "";
 
   if (selectedSlotId && !available.some((slot) => slot.id === selectedSlotId)) {
     selectedSlotId = "";
@@ -995,51 +1126,71 @@ function renderBookingOptions() {
     return;
   }
 
-  Object.values(groupSlotsByDate(available)).forEach((group) => {
-    const section = document.createElement("section");
-    section.className = "day-group";
+  const groups = Object.values(groupSlotsByDate(available));
+  if (!selectedBookingDate || !groups.some((group) => group.date === selectedBookingDate)) {
+    selectedBookingDate = groups[0].date;
+  }
 
-    const title = document.createElement("div");
-    title.className = "day-group-title";
-    const titleText = document.createElement("div");
-    titleText.className = "day-title-text";
-    titleText.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
-
-    const times = document.createElement("div");
-    times.className = "time-grid";
-
-    group.slots.forEach((slot) => {
-      const item = document.createElement("div");
-      item.className = `time-item bookable-time ${selectedSlotId === slot.id ? "selected" : ""}`;
-      item.setAttribute("role", "button");
-      item.setAttribute("tabindex", "0");
-      item.setAttribute("aria-label", `اختيار موعد ${slotLabel(slot)}`);
-      const time = document.createElement("span");
-      time.textContent = formatTime(slot.time);
-      const selectSlot = () => {
-        selectedSlotId = slot.id;
-        slotSelect.value = slot.id;
-        renderBookingOptions();
-      };
-      item.addEventListener("click", selectSlot);
-      item.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          selectSlot();
-        }
-      });
-      item.append(time);
-      times.append(item);
+  groups.forEach((group) => {
+    const dayButton = document.createElement("button");
+    dayButton.type = "button";
+    dayButton.className = `day-choice ${selectedBookingDate === group.date ? "active" : ""}`;
+    dayButton.innerHTML = `<strong>${group.day}</strong><span>${formatDate(group.date)}</span>`;
+    dayButton.addEventListener("click", () => {
+      selectedBookingDate = group.date;
+      selectedSlotId = "";
+      slotSelect.value = "";
+      renderBookingOptions();
     });
-
-    title.append(titleText);
-    section.append(title);
-    if (locationTypeInput.value === "internal") {
-      appendPrayerBreaks(section, group.date);
-    }
-    section.append(times);
-    userSlots.append(section);
+    userDayChoices.append(dayButton);
   });
+
+  const group = groups.find((item) => item.date === selectedBookingDate);
+  if (!group) return;
+
+  const section = document.createElement("section");
+  section.className = "day-group selected-day-group";
+  const title = document.createElement("div");
+  title.className = "day-group-title";
+  title.innerHTML = `<div class="day-title-text"><strong>${group.day}</strong><span>${formatDate(group.date)}</span></div>`;
+  section.append(title);
+
+  if (getCurrentBookingType() === "internal") {
+    appendPrayerBreaks(section, group.date);
+  }
+
+  const times = document.createElement("div");
+  times.className = getCurrentBookingType() === "internal" ? "time-grid" : "visit-option-grid";
+  group.slots.forEach((slot) => {
+    const item = document.createElement("div");
+    item.className = `time-item bookable-time ${selectedSlotId === slot.id ? "selected" : ""}`;
+    item.setAttribute("role", "button");
+    item.setAttribute("tabindex", "0");
+    const label = slot.slot_type === "internal"
+      ? formatTime(slot.time)
+      : slot.slot_type === "home"
+        ? `${slot.title}: ${formatTime(slot.time)} إلى ${formatTime(slot.end_time)}`
+        : `${slot.title}: ${formatDateRange(slot.date, slot.package_end_date)}`;
+    item.setAttribute("aria-label", `اختيار ${label}`);
+    const content = document.createElement("span");
+    content.textContent = label;
+    const selectSlot = () => {
+      selectedSlotId = slot.id;
+      slotSelect.value = slot.id;
+      renderBookingOptions();
+    };
+    item.addEventListener("click", selectSlot);
+    item.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectSlot();
+      }
+    });
+    item.append(content);
+    times.append(item);
+  });
+  section.append(times);
+  userSlots.append(section);
 }
 
 function appendButton(parent, className, text, onClick) {
@@ -1108,7 +1259,16 @@ function appendCell(row, value) {
 function appendAppointmentCell(row, booking) {
   const cell = document.createElement("td");
   cell.className = "appointment-cell";
-  [`${booking.slot.day} ${formatDate(booking.slot.date)}`, formatTime(booking.slot.time)].forEach((value) => {
+  const values = booking.booking_type === "external"
+    ? [booking.appointment_title || "باقة زيارة خارج مدينة حائل", formatDateRange(booking.booking_start_date, booking.booking_end_date)]
+    : booking.booking_type === "home"
+      ? [
+          `${booking.slot.day} ${formatDate(booking.slot.date)}`,
+          booking.appointment_title || booking.slot.title || "زيارة منزلية",
+          `${formatTime(booking.appointment_start_time || booking.slot.time)} - ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`
+        ]
+      : [`${booking.slot.day} ${formatDate(booking.slot.date)}`, formatTime(booking.slot.time)];
+  values.forEach((value) => {
     const line = document.createElement("span");
     line.textContent = value;
     cell.append(line);
@@ -1152,7 +1312,11 @@ function renderAdminSlotGroup(container, available) {
       const item = document.createElement("div");
       item.className = `time-item ${slot.suspended ? "suspended-slot" : ""}`;
       const time = document.createElement("span");
-      time.textContent = formatTime(slot.time);
+      time.textContent = slot.slot_type === "internal"
+        ? formatTime(slot.time)
+        : slot.slot_type === "home"
+          ? `${slot.title}: ${formatTime(slot.time)} - ${formatTime(slot.end_time)}`
+          : `${slot.title}: ${formatDateRange(slot.date, slot.package_end_date)}`;
       appendIconButton(
         item,
         slot.suspended ? "attendance-button" : "outline-action",
@@ -1176,24 +1340,18 @@ function renderAdminSlotGroup(container, available) {
 
 function renderAvailableSlots() {
   const internal = getAdminOpenSlots("internal");
+  const home = getAdminOpenSlots("home");
   const external = getAdminOpenSlots("external");
-  const available = [...internal, ...external];
+  const available = [...internal, ...home, ...external];
   availableCount.textContent = `${available.filter((slot) => !slot.suspended).length} موعد`;
   updateWeekButton();
   renderAdminSlotGroup(internalAvailableSlots, internal);
+  renderAdminSlotGroup(homeAvailableSlots, home);
   renderAdminSlotGroup(externalAvailableSlots, external);
 }
 
 function getCurrentWeekOpenSlots() {
-  const adminOpenSlots = getAdminOpenSlots();
-  if (!adminOpenSlots.length) return [];
-
-  const weekStart = getWeekStart(new Date(`${adminOpenSlots[0].date}T00:00:00`));
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  const weekStartKey = toDateKey(weekStart);
-  const weekEndKey = toDateKey(weekEnd);
-  return adminOpenSlots.filter((slot) => slot.date >= weekStartKey && slot.date <= weekEndKey);
+  return getAdminOpenSlots("internal");
 }
 
 function getManagedGeneratedSlotIds() {
@@ -1206,7 +1364,9 @@ function updateWeekButton() {
   const weekSlots = getCurrentWeekOpenSlots();
   const hasSuspendedSlot = weekSlots.some((slot) => slot.suspended);
   suspendWeekButton.className = hasSuspendedSlot ? "success-action" : "danger-solid";
-  suspendWeekButton.textContent = hasSuspendedSlot ? "إعادة إتاحة مواعيد كامل الأسبوع" : "تعليق كامل مواعيد الأسبوع";
+  suspendWeekButton.textContent = hasSuspendedSlot
+    ? "إعادة إتاحة المواعيد الثمانية المعروضة"
+    : "تعليق المواعيد الثمانية المعروضة";
 }
 
 function renderBookingsTable() {
@@ -1238,7 +1398,6 @@ function renderBookingsTable() {
         booking.region || booking.city || "غير محدد",
         booking.visit_city || null,
         booking.visit_distance_km ? `المسافة ذهابًا: ${booking.visit_distance_km} كم` : null,
-        booking.visit_distance_km ? `المسافة إيابًا: ${booking.visit_distance_km} كم` : null,
         booking.visit_price ? `قيمة الزيارة: ${formatPrice(booking.visit_price)} ريال` : null,
         booking.home_session ? "زيارة منزلية" : null,
         booking.customer_location_url ? `الموقع: ${booking.customer_location_url}` : null,
@@ -1267,11 +1426,44 @@ function renderBookingsTable() {
   });
 }
 
+function renderSettings() {
+  generalPriceInput.value = pricing.general_price ?? "";
+  homeVisitPriceInput.value = pricing.home_visit_price ?? "";
+  externalNearPriceInput.value = pricing.external_near_price ?? "";
+  externalFarPriceInput.value = pricing.external_far_price ?? "";
+  visitTemplateList.innerHTML = "";
+
+  if (!visitTemplates.length) {
+    visitTemplateList.innerHTML = '<p class="empty-state">لا توجد زيارات معرفة في القالب.</p>';
+    return;
+  }
+
+  visitTemplates.forEach((template) => {
+    const item = document.createElement("div");
+    item.className = "template-item";
+    const text = document.createElement("div");
+    text.innerHTML = `<strong>${template.title}</strong><span>${formatTime(template.start_time)} إلى ${formatTime(template.end_time)}</span>`;
+    const actions = document.createElement("div");
+    actions.className = "template-actions";
+    appendButton(actions, "outline-action compact-button", "تعديل", () => {
+      visitTemplateId.value = template.id;
+      visitTemplateTitle.value = template.title;
+      visitTemplateStart.value = template.start_time;
+      visitTemplateEnd.value = template.end_time;
+      cancelTemplateEditButton.classList.remove("hidden");
+    });
+    appendButton(actions, "danger-button compact-button", "حذف", () => deleteVisitTemplate(template.id));
+    item.append(text, actions);
+    visitTemplateList.append(item);
+  });
+}
+
 function renderAll() {
   renderAdminAccess();
   renderBookingOptions();
   renderAvailableSlots();
   renderBookingsTable();
+  renderSettings();
 }
 
 function renderReceiptBooking(booking) {
@@ -1297,9 +1489,13 @@ function renderReceiptBooking(booking) {
   [
     booking.name || "غير مسجل",
     booking.booking_number,
-    booking.slot.day,
-    formatDate(booking.slot.date),
-    formatTime(booking.slot.time),
+    booking.booking_type === "external" ? "باقة خارج مدينة حائل" : booking.slot.day,
+    booking.booking_type === "external"
+      ? formatDateRange(booking.booking_start_date, booking.booking_end_date)
+      : formatDate(booking.slot.date),
+    booking.booking_type === "external"
+      ? "-"
+      : `${formatTime(booking.slot.time)}${booking.slot.end_time ? ` إلى ${formatTime(booking.slot.end_time)}` : ""}`,
     booking.visit_city || booking.city || "غير محدد",
     booking.visit_price ? `${formatPrice(booking.visit_price)} ريال` : "-"
   ].forEach((value, index) => {
@@ -1338,7 +1534,9 @@ async function lookupReceiptBooking(phone, bookingNumber) {
       id: row.slot_id,
       day: row.slot_day,
       date: row.slot_date,
-      time: row.slot_time
+      time: row.slot_time,
+      end_time: row.slot_end_time,
+      title: row.appointment_title
     }
   };
 }
@@ -1352,6 +1550,7 @@ async function recoverBookingNumber(phone) {
 }
 
 async function refreshAll() {
+  await loadPublicConfig();
   await loadData();
   if (isAdmin) {
     await cleanupExpiredPendingBookings();
@@ -1359,6 +1558,14 @@ async function refreshAll() {
     await insertMissingWeeklySlots();
   }
   renderAll();
+}
+
+async function deleteVisitTemplate(templateId) {
+  await api(`appointment_visit_templates?id=eq.${encodeURIComponent(templateId)}`, {
+    method: "DELETE"
+  });
+  showToast("تم حذف الزيارة من القالب.");
+  await refreshAll();
 }
 
 async function deleteSlot(slotId) {
@@ -1454,7 +1661,7 @@ async function toggleCurrentWeekSuspension() {
   }
 
   await setSlotsSuspension(slotsToUpdate.map((slot) => slot.id), targetSuspended);
-  showToast(targetSuspended ? "تم تعليق كامل مواعيد هذا الأسبوع." : "تمت إعادة إتاحة المواعيد لهذا الأسبوع.");
+  showToast(targetSuspended ? "تم تعليق المواعيد الثمانية المعروضة." : "تمت إعادة إتاحة المواعيد الثمانية المعروضة.");
   await refreshAll();
 }
 
@@ -1579,8 +1786,8 @@ locationTypeInput.addEventListener("change", () => {
   homeSessionField.classList.toggle("hidden", isExternal);
   customerLocationField.classList.toggle("hidden", !isExternal);
   document.querySelector(".slots-note").textContent = isExternal
-    ? "تظهر مواعيد الخميس والجمعة والسبت المتاحة حتى نهاية الشهر الحالي."
-    : "يتم إتاحة مواعيد للخمسة أيام القادمة فقط.";
+    ? "اختر باقة الخميس والجمعة والسبت. تكتمل الباقة حتى لو امتدت إلى الشهر التالي."
+    : "يتم إتاحة المواعيد العامة للأيام الأربعة القادمة فقط.";
   if (isExternal) {
     homeSessionInput.checked = false;
     renderVisitCityOptions();
@@ -1588,7 +1795,7 @@ locationTypeInput.addEventListener("change", () => {
       requestCurrentLocation().catch(() => {});
     }
     if (!visitCities.length) {
-      showMessage(bookingMessage, "الحجز خارج منطقة حائل غير متاح مؤقتًا حتى يكتمل تحديث قاعدة البيانات.", "error");
+      showMessage(bookingMessage, "الحجز خارج مدينة حائل غير متاح مؤقتًا حتى يكتمل تحديث قاعدة البيانات.", "error");
     }
   } else {
     regionInput.value = "";
@@ -1597,11 +1804,22 @@ locationTypeInput.addEventListener("change", () => {
     customerLatInput.value = "";
     customerLngInput.value = "";
     locationStatus.textContent = "";
-    document.querySelector(".slots-note").textContent = "يتم إتاحة مواعيد للخمسة أيام القادمة فقط.";
+    document.querySelector(".slots-note").textContent = "يتم إتاحة المواعيد العامة للأيام الأربعة القادمة فقط.";
     showMessage(bookingMessage, "", "");
   }
   selectedSlotId = "";
+  selectedBookingDate = "";
   slotSelect.value = "";
+  renderBookingOptions();
+});
+
+homeSessionInput.addEventListener("change", () => {
+  selectedSlotId = "";
+  selectedBookingDate = "";
+  slotSelect.value = "";
+  document.querySelector(".slots-note").textContent = homeSessionInput.checked
+    ? "تظهر الزيارات المنزلية المتاحة أيام الخميس والجمعة والسبت."
+    : "يتم إتاحة المواعيد العامة للأيام الأربعة القادمة فقط.";
   renderBookingOptions();
 });
 
@@ -1636,6 +1854,88 @@ availableScheduleTabs.forEach((tab) => {
       );
     });
   });
+});
+
+visitAdminTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    const selectedView = tab.dataset.visitAdmin;
+    visitAdminTabs.forEach((item) => item.classList.toggle("active", item === tab));
+    visitAdminViews.forEach((view) => {
+      view.classList.toggle("active", view.dataset.visitAdminView === selectedView);
+    });
+  });
+});
+
+pricingSettingsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setBusy(pricingSettingsForm, true);
+  try {
+    await api("appointment_pricing?id=eq.true", {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: {
+        general_price: Number(generalPriceInput.value),
+        home_visit_price: Number(homeVisitPriceInput.value),
+        external_near_price: Number(externalNearPriceInput.value),
+        external_far_price: Number(externalFarPriceInput.value),
+        updated_at: new Date().toISOString()
+      }
+    });
+    showToast("تم حفظ الأسعار وتطبيقها على الحجوزات الجديدة.");
+    await refreshAll();
+  } catch (error) {
+    showToast(`تعذر حفظ الأسعار: ${error.message}`);
+  } finally {
+    setBusy(pricingSettingsForm, false);
+  }
+});
+
+visitTemplateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (visitTemplateEnd.value <= visitTemplateStart.value) {
+    showToast("وقت نهاية الزيارة يجب أن يكون بعد وقت البداية.");
+    return;
+  }
+  setBusy(visitTemplateForm, true);
+  try {
+    const body = {
+      title: visitTemplateTitle.value.trim(),
+      start_time: visitTemplateStart.value,
+      end_time: visitTemplateEnd.value,
+      sort_order: visitTemplateId.value
+        ? visitTemplates.find((item) => item.id === visitTemplateId.value)?.sort_order || 0
+        : visitTemplates.length + 1,
+      updated_at: new Date().toISOString()
+    };
+    if (visitTemplateId.value) {
+      await api(`appointment_visit_templates?id=eq.${encodeURIComponent(visitTemplateId.value)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body
+      });
+    } else {
+      await api("appointment_visit_templates", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body
+      });
+    }
+    visitTemplateForm.reset();
+    visitTemplateId.value = "";
+    cancelTemplateEditButton.classList.add("hidden");
+    showToast("تم حفظ قالب الزيارة.");
+    await refreshAll();
+  } catch (error) {
+    showToast(`تعذر حفظ قالب الزيارة: ${error.message}`);
+  } finally {
+    setBusy(visitTemplateForm, false);
+  }
+});
+
+cancelTemplateEditButton.addEventListener("click", () => {
+  visitTemplateForm.reset();
+  visitTemplateId.value = "";
+  cancelTemplateEditButton.classList.add("hidden");
 });
 
 receiptLookupForm.addEventListener("submit", async (event) => {
@@ -1827,8 +2127,9 @@ bookingForm.addEventListener("submit", async (event) => {
     customerLatInput.value = "";
     customerLngInput.value = "";
     locationStatus.textContent = "";
-    document.querySelector(".slots-note").textContent = "يتم إتاحة مواعيد للخمسة أيام القادمة فقط.";
+    document.querySelector(".slots-note").textContent = "يتم إتاحة المواعيد العامة للأيام الأربعة القادمة فقط.";
     selectedSlotId = "";
+    selectedBookingDate = "";
     slotSelect.value = "";
     const bookingResult = { ...(created?.[0] || {}), name };
     const bookingNumber = bookingResult.booking_number || "";
@@ -1842,7 +2143,7 @@ bookingForm.addEventListener("submit", async (event) => {
       : error.message.includes("SLOT_NOT_AVAILABLE")
         ? "هذا الموعد لم يعد متاحًا. اختر موعدًا آخر."
         : error.message.includes("EXTERNAL_DAY_BOOKED")
-          ? "تم حجز هذا اليوم لموعد خارج منطقة حائل. اختر يومًا آخر."
+          ? "تم حجز هذه الأيام لزيارة أخرى. اختر باقة مختلفة."
           : error.message.includes("PRICE_NOT_ACCEPTED")
             ? "يجب الموافقة على قيمة الزيارة قبل تأكيد الحجز."
             : error.message.includes("INVALID_VISIT_CITY")

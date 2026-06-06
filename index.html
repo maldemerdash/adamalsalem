@@ -27,7 +27,7 @@
         </div>
 
         <div class="service-hours">
-          <strong>مواعيد مدينة حائل من الأحد إلى الأربعاء من 5:00 مساءً حتى 9:00 مساءً، مع استثناء أوقات صلاتي المغرب والعشاء.</strong>
+          <strong>المواعيد العامة داخل مدينة حائل من الأحد إلى الأربعاء، من 5:00 مساءً حتى 9:30 مساءً، مع استثناء أوقات صلاتي المغرب والعشاء.</strong>
         </div>
       </header>
 
@@ -98,8 +98,8 @@
                 <strong>30 دقيقة</strong>
               </div>
               <div class="mini-schedule">
-                <span>المواعيد خارج منطقة حائل</span>
-                <strong>الخميس والجمعة والسبت من 8:00 صباحًا إلى 9:00 مساءً</strong>
+                <span>الزيارات المنزلية والخارجية</span>
+                <strong>الخميس والجمعة والسبت وفق الزيارات والباقات المتاحة</strong>
               </div>
             </aside>
 
@@ -126,7 +126,7 @@
                     <span>مكان الموعد</span>
                     <select id="locationTypeInput" required>
                       <option value="internal" selected>داخل مدينة حائل</option>
-                      <option value="external">خارج منطقة حائل</option>
+                      <option value="external">خارج مدينة حائل</option>
                     </select>
                   </label>
 
@@ -134,6 +134,7 @@
                     <span>المنطقة</span>
                     <select id="regionInput">
                       <option value="">اختر المنطقة</option>
+                      <option>منطقة حائل وضواحيها</option>
                       <option>منطقة الرياض وضواحيها</option>
                       <option>منطقة مكة المكرمة وضواحيها</option>
                       <option>منطقة المدينة المنورة وضواحيها</option>
@@ -174,8 +175,9 @@
               <input id="slotSelect" type="hidden" required />
 
               <div class="user-slots-field">
-                <p class="slots-note">يتم إتاحة مواعيد للخمسة أيام القادمة فقط.</p>
+                <p class="slots-note">يتم إتاحة المواعيد العامة للأيام الأربعة القادمة فقط.</p>
                 <span>المواعيد المتاحة</span>
+                <div id="userDayChoices" class="user-day-choices"></div>
                 <div id="userSlots" class="user-slots"></div>
               </div>
 
@@ -232,7 +234,7 @@
             </div>
 
             <div class="auto-note">
-              داخل حائل: الأحد إلى الأربعاء من 5:00 مساءً إلى 9:00 مساءً مع استثناء المغرب والعشاء. خارج حائل: الخميس إلى السبت من 8:00 صباحًا إلى 9:00 مساءً.
+              المواعيد العامة: الأحد إلى الأربعاء من 5:00 مساءً إلى 9:30 مساءً. الزيارات المنزلية والخارجية: الخميس والجمعة والسبت.
             </div>
 
             <div class="stats-grid">
@@ -246,9 +248,10 @@
               </div>
             </div>
 
-            <div class="admin-tabs" role="tablist" aria-label="تنقل لوحة المدير">
+            <div class="admin-tabs admin-main-tabs" role="tablist" aria-label="تنقل لوحة المدير">
               <button class="admin-tab active" type="button" data-admin-view="available">المواعيد المتاحة</button>
               <button class="admin-tab" type="button" data-admin-view="bookings">المواعيد المحجوزة</button>
+              <button class="admin-tab" type="button" data-admin-view="settings">الأسعار والقوالب</button>
             </div>
 
             <div id="adminAvailableView" class="admin-view active">
@@ -260,24 +263,70 @@
                 </div>
               </div>
               <div class="list-actions">
-                <button id="regenerateSlotsButton" class="secondary-action" type="button">إعادة المواعيد الأسبوعية</button>
-                <button id="suspendWeekButton" class="danger-solid" type="button">تعليق كامل مواعيد الأسبوع</button>
+                <button id="regenerateSlotsButton" class="secondary-action" type="button">إعادة المواعيد الثمانية المعروضة</button>
+                <button id="suspendWeekButton" class="danger-solid" type="button">تعليق المواعيد الثمانية المعروضة</button>
               </div>
               <div class="available-schedule-tabs" role="tablist" aria-label="نوع المواعيد المتاحة">
                 <button class="available-schedule-tab active" type="button" data-available-schedule="internal">مواعيد مدينة حائل</button>
-                <button class="available-schedule-tab" type="button" data-available-schedule="external">مواعيد خارج حائل</button>
+                <button class="available-schedule-tab" type="button" data-available-schedule="visits">الزيارات المنزلية وخارج حائل</button>
               </div>
               <div class="admin-schedule-views">
                 <section class="admin-schedule-panel active" data-available-schedule-view="internal">
-                  <h4>مواعيد مدينة حائل - أسبوعان</h4>
+                  <h4>مواعيد مدينة حائل - ثمانية أيام عمل</h4>
                   <div id="internalAvailableSlots" class="grouped-slots"></div>
                 </section>
-                <section class="admin-schedule-panel" data-available-schedule-view="external">
-                  <h4>مواعيد خارج حائل - الشهر الحالي</h4>
-                  <div id="externalAvailableSlots" class="grouped-slots"></div>
+                <section class="admin-schedule-panel" data-available-schedule-view="visits">
+                  <div class="visit-admin-tabs" role="tablist" aria-label="نوع الزيارات">
+                    <button class="visit-admin-tab active" type="button" data-visit-admin="home">الزيارات المنزلية داخل حائل</button>
+                    <button class="visit-admin-tab" type="button" data-visit-admin="external">الزيارات خارج حائل</button>
+                  </div>
+                  <div class="visit-admin-view active" data-visit-admin-view="home">
+                    <h4>الزيارات المنزلية داخل حائل</h4>
+                    <div id="homeAvailableSlots" class="grouped-slots"></div>
+                  </div>
+                  <div class="visit-admin-view" data-visit-admin-view="external">
+                    <h4>باقات الزيارات خارج حائل</h4>
+                    <div id="externalAvailableSlots" class="grouped-slots"></div>
+                  </div>
                 </section>
               </div>
             </div>
+            </div>
+
+            <div id="adminSettingsView" class="admin-view">
+              <div class="admin-section">
+                <div class="list-head">
+                  <div>
+                    <h3>أسعار الحجوزات</h3>
+                    <p>تُستخدم هذه القيم في الموقع ورسائل التأكيد وواتساب حتى يتم تعديلها مرة أخرى.</p>
+                  </div>
+                </div>
+                <form id="pricingSettingsForm" class="settings-grid">
+                  <label><span>الموعد العام داخل حائل</span><input id="generalPriceInput" type="number" min="0" step="1" required /></label>
+                  <label><span>الزيارة المنزلية داخل حائل</span><input id="homeVisitPriceInput" type="number" min="0" step="1" required /></label>
+                  <label><span>زيارة خارج حائل - 100 كم أو أقل</span><input id="externalNearPriceInput" type="number" min="0" step="1" required /></label>
+                  <label><span>زيارة خارج حائل - أكثر من 100 كم</span><input id="externalFarPriceInput" type="number" min="0" step="1" required /></label>
+                  <button class="primary-action" type="submit">حفظ الأسعار</button>
+                </form>
+              </div>
+
+              <div class="admin-section">
+                <div class="list-head">
+                  <div>
+                    <h3>قالب الزيارات المنزلية</h3>
+                    <p>يتكرر القالب كل خميس وجمعة وسبت وفي الأشهر القادمة حتى تعدله.</p>
+                  </div>
+                </div>
+                <form id="visitTemplateForm" class="settings-grid template-form">
+                  <input id="visitTemplateId" type="hidden" />
+                  <label><span>عنوان الزيارة</span><input id="visitTemplateTitle" type="text" required placeholder="مثال: الزيارة الأولى" /></label>
+                  <label><span>من الساعة</span><input id="visitTemplateStart" type="time" required /></label>
+                  <label><span>إلى الساعة</span><input id="visitTemplateEnd" type="time" required /></label>
+                  <button class="primary-action" type="submit">حفظ الزيارة</button>
+                  <button id="cancelTemplateEditButton" class="outline-action hidden" type="button">إلغاء التعديل</button>
+                </form>
+                <div id="visitTemplateList" class="template-list"></div>
+              </div>
             </div>
 
             <div id="adminBookingsView" class="admin-view">
@@ -290,8 +339,9 @@
               </div>
               <div class="booking-filter" role="group" aria-label="تصفية المواعيد المحجوزة">
                 <button class="booking-filter-button active" type="button" data-booking-filter="all">الكل</button>
-                <button class="booking-filter-button" type="button" data-booking-filter="internal">مواعيد حائل</button>
-                <button class="booking-filter-button" type="button" data-booking-filter="external">خارج حائل</button>
+                <button class="booking-filter-button" type="button" data-booking-filter="internal">المواعيد العامة</button>
+                <button class="booking-filter-button" type="button" data-booking-filter="home">الزيارات المنزلية</button>
+                <button class="booking-filter-button" type="button" data-booking-filter="external">خارج مدينة حائل</button>
               </div>
               <div class="bookings-table-wrap">
                 <table class="bookings-table">
