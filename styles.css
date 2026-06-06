@@ -224,6 +224,10 @@ h3 {
   box-shadow: var(--shadow);
 }
 
+.compact-dialog {
+  width: min(520px, 100%);
+}
+
 #receiptButton,
 .receipt-top-button {
   border: 0;
@@ -252,10 +256,38 @@ label span {
   font-weight: 800;
 }
 
-#bookingForm label span::after,
+#bookingForm label:not(.optional-field) > span::after,
 .user-slots-field > span::after {
   content: " *";
   color: var(--danger);
+}
+
+.single-column-form {
+  grid-template-columns: 1fr;
+}
+
+.checkbox-field {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 13px;
+  border: 1px solid #cad5da;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.checkbox-field input {
+  width: 20px;
+  min-height: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.checkbox-field span {
+  margin: 0;
 }
 
 input,
@@ -481,6 +513,43 @@ select:focus {
   margin-bottom: 8px;
   color: #344451;
   font-weight: 800;
+}
+
+.slots-note {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-weight: 800;
+  line-height: 1.7;
+}
+
+.booking-support-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.booking-support-actions button {
+  width: 100%;
+}
+
+.external-message {
+  display: grid;
+  gap: 12px;
+}
+
+.external-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 6px;
+  text-decoration: none;
 }
 
 .user-slots {
@@ -894,7 +963,8 @@ tr:has(.appointment-cell) td {
 
   .form-grid,
   .stats-grid,
-  .admin-tabs {
+  .admin-tabs,
+  .booking-support-actions {
     grid-template-columns: 1fr;
   }
 

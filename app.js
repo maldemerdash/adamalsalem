@@ -1,25 +1,41 @@
 const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
-const SCHEDULE_VERSION = "weekly-v4";
-const START_HOUR = 17;
-const END_HOUR = 21;
+const SCHEDULE_VERSION = "weekly-v6";
+const INTERNAL_START_HOUR = 17;
+const INTERNAL_END_HOUR = 21;
+const EXTERNAL_START_HOUR = 8;
+const EXTERNAL_END_HOUR = 21;
 const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
 const RECEIPT_WHATSAPP_PHONE = "966555707854";
-const WORK_DAYS = [
+const INTERNAL_WORK_DAYS = [
   { offset: 0, name: "الأحد" },
   { offset: 1, name: "الإثنين" },
   { offset: 2, name: "الثلاثاء" },
-  { offset: 3, name: "الأربعاء" },
-  { offset: 4, name: "الخميس" }
+  { offset: 3, name: "الأربعاء" }
+];
+const EXTERNAL_WORK_DAYS = [
+  { offset: 4, name: "الخميس" },
+  { offset: 5, name: "الجمعة" },
+  { offset: 6, name: "السبت" }
 ];
 const MESSAGES = {
-  paymentInstructions:
-    "لتأكيد الحجز يرجى تحويل مبلغ 50 ريال\nعلى الحساب البنكي التالي:\nSA4480000456608016164286\nوبعد التحويل يتم الضغط على زر إرفاق إيصال التحويل في أعلى الموقع",
   paymentWarning:
     "تنبيه: في حال لم يتم التحويل وإرسال الإيصال خلال 15 دقيقة سيتم إلغاء الحجز تلقائيا",
   whatsappConfirmation(booking) {
+    if (booking.booking_type === "external") {
+      return [
+        booking.name ? `مرحبًا ${booking.name}` : "مرحبًا",
+        "تم تأكيد موعد الزيارة خارج منطقة حائل.",
+        `المنطقة: ${booking.region || booking.city}`,
+        `اليوم: ${booking.slot.day}`,
+        `التاريخ: ${booking.slot.date}`,
+        `الساعة: ${formatTime(booking.slot.time)}`,
+        booking.home_session ? "نوع الجلسة: جلسة منزلية" : null
+      ].filter(Boolean).join("\n");
+    }
+
     return [
-      `مرحبًا ${booking.name}`,
+      booking.name ? `مرحبًا ${booking.name}` : "مرحبًا",
       "تم تأكيد موعدك بنجاح.",
       `اليوم: ${booking.slot.day}`,
       `التاريخ: ${booking.slot.date}`,
@@ -36,13 +52,18 @@ let deletedSlots = [];
 let selectedSlotId = "";
 let authSession = null;
 let isAdmin = false;
+let prayerTimesReady = false;
+const prayerTimesByDate = new Map();
 
 const bookingPanel = document.querySelector("#bookingPanel");
 const adminPanel = document.querySelector("#adminPanel");
 const bookingForm = document.querySelector("#bookingForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
 const slotSelect = document.querySelector("#slotSelect");
-const cityInput = document.querySelector("#cityInput");
+const locationTypeInput = document.querySelector("#locationTypeInput");
+const regionField = document.querySelector("#regionField");
+const regionInput = document.querySelector("#regionInput");
+const homeSessionInput = document.querySelector("#homeSessionInput");
 const userSlots = document.querySelector("#userSlots");
 const bookingMessage = document.querySelector("#bookingMessage");
 const bookingNumberDisplay = document.querySelector("#bookingNumberDisplay");
@@ -53,6 +74,11 @@ const closeReceiptButton = document.querySelector("#closeReceiptButton");
 const receiptLookupForm = document.querySelector("#receiptLookupForm");
 const receiptResult = document.querySelector("#receiptResult");
 const receiptMessage = document.querySelector("#receiptMessage");
+const recoveryButton = document.querySelector("#recoveryButton");
+const recoveryPanel = document.querySelector("#recoveryPanel");
+const closeRecoveryButton = document.querySelector("#closeRecoveryButton");
+const recoveryForm = document.querySelector("#recoveryForm");
+const recoveryMessage = document.querySelector("#recoveryMessage");
 const adminLoginView = document.querySelector("#adminLoginView");
 const adminDashboard = document.querySelector("#adminDashboard");
 const adminLoginButton = document.querySelector("#adminLoginButton");
@@ -195,38 +221,105 @@ function getSlotEndDateTime(slot) {
   return new Date(getSlotDateTime(slot).getTime() + 30 * 60 * 1000);
 }
 
+function parsePrayerTime(value) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})/);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+async function loadPrayerTimes() {
+  prayerTimesByDate.clear();
+  prayerTimesReady = false;
+
+  const dates = getManagedWeekStarts().flatMap((weekStart) => {
+    return Array.from({ length: 7 }, (_, offset) => {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + offset);
+      return date;
+    });
+  });
+  const months = [...new Set(dates.map((date) => `${date.getFullYear()}-${date.getMonth() + 1}`))];
+
+  try {
+    const calendars = await Promise.all(months.map(async (key) => {
+      const [year, month] = key.split("-");
+      const url = `https://api.aladhan.com/v1/calendarByCity/${year}/${month}?city=Hail&country=Saudi%20Arabia&method=4`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("PRAYER_TIMES_UNAVAILABLE");
+      const result = await response.json();
+      return result.data || [];
+    }));
+
+    calendars.flat().forEach((day) => {
+      const date = day.date?.gregorian;
+      const key = date ? `${date.year}-${pad(date.month.number)}-${pad(date.day)}` : "";
+      if (!key) return;
+      prayerTimesByDate.set(key, {
+        maghrib: parsePrayerTime(day.timings?.Maghrib),
+        isha: parsePrayerTime(day.timings?.Isha)
+      });
+    });
+    prayerTimesReady = prayerTimesByDate.size > 0;
+  } catch (error) {
+    console.error("تعذر تحميل مواقيت الصلاة.", error);
+  }
+}
+
+function isPrayerBlocked(dateKey, time) {
+  const prayers = prayerTimesByDate.get(dateKey);
+  if (!prayers) return true;
+
+  const [hour, minute] = time.split(":").map(Number);
+  const slotStart = hour * 60 + minute;
+  const slotEnd = slotStart + 30;
+
+  return [prayers.maghrib, prayers.isha].some((prayerStart) => {
+    if (prayerStart === null) return true;
+    const prayerEnd = Math.ceil((prayerStart + 30) / 30) * 30;
+    return slotStart < prayerEnd && slotEnd > prayerStart;
+  });
+}
+
 function buildWeeklySlots(weekStart) {
   const generated = [];
 
-  WORK_DAYS.forEach((day) => {
+  const addSlots = (days, startHour, endHour, slotType) => days.forEach((day) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + day.offset);
     const dateKey = toDateKey(date);
 
-    for (let hour = START_HOUR; hour < END_HOUR; hour += 1) {
+    for (let hour = startHour; hour < endHour; hour += 1) {
       ["00", "30"].forEach((minute) => {
         const time = `${pad(hour)}:${minute}`;
+        if (slotType === "internal" && isPrayerBlocked(dateKey, time)) return;
         generated.push({
-          id: `${dateKey}T${time}`,
+          id: `${SCHEDULE_VERSION}:${slotType}:${dateKey}T${time}`,
           day: day.name,
           date: dateKey,
           time,
           source: "auto",
           suspended: false,
+          slot_type: slotType,
           schedule_version: SCHEDULE_VERSION
         });
       });
     }
   });
 
+  if (prayerTimesReady) {
+    addSlots(INTERNAL_WORK_DAYS, INTERNAL_START_HOUR, INTERNAL_END_HOUR, "internal");
+  }
+  addSlots(EXTERNAL_WORK_DAYS, EXTERNAL_START_HOUR, EXTERNAL_END_HOUR, "external");
+
   return generated;
 }
 
 function getManagedWeekStarts() {
   const currentWeekStart = getWeekStart();
-  const nextWeekStart = new Date(currentWeekStart);
-  nextWeekStart.setDate(currentWeekStart.getDate() + 7);
-  return [currentWeekStart, nextWeekStart];
+  return Array.from({ length: 8 }, (_, weekOffset) => {
+    const weekStart = new Date(currentWeekStart);
+    weekStart.setDate(currentWeekStart.getDate() + weekOffset * 7);
+    return weekStart;
+  });
 }
 
 function formatDate(value) {
@@ -294,12 +387,26 @@ function getWhatsappUrl(booking) {
 function getReceiptWhatsappUrl(booking) {
   const message = encodeURIComponent([
     `تم إرفاق إيصال للموعد رقم ${booking.booking_number}`,
-    `باسم ${booking.name}`,
+    booking.name ? `باسم ${booking.name}` : null,
     `اليوم: ${booking.slot.day}`,
     `التاريخ: ${booking.slot.date}`,
     `الساعة: ${formatTime(booking.slot.time)}`
+  ].filter(Boolean).join("\n"));
+  return `https://wa.me/${RECEIPT_WHATSAPP_PHONE}?text=${message}`;
+}
+
+function getExternalBookingWhatsappUrl(region, bookingNumber) {
+  const message = encodeURIComponent([
+    `رقم الحجز: ${bookingNumber}`,
+    `تم اختيار موعد خارج منطقة حائل في ${region}`,
+    "سيتم التواصل معكم لتحديد اتفاق الزيارة."
   ].join("\n"));
   return `https://wa.me/${RECEIPT_WHATSAPP_PHONE}?text=${message}`;
+}
+
+function getRecoveryWhatsappUrl(phone, bookingNumber) {
+  const message = encodeURIComponent(`رقم حجزك هو: ${bookingNumber}`);
+  return `https://wa.me/${toWhatsappPhone(phone)}?text=${message}`;
 }
 
 async function loadData() {
@@ -385,10 +492,21 @@ function getReservedSlots() {
 
 function getAvailableSlots() {
   const now = new Date();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const lastAvailableDate = new Date(today);
+  lastAvailableDate.setDate(today.getDate() + 4);
+  const selectedType = locationTypeInput.value;
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
   return slots
     .filter((slot) => !bookedIds.has(slot.id))
     .filter((slot) => !slot.suspended)
+    .filter((slot) => slot.slot_type === selectedType)
+    .filter((slot) => {
+      const date = new Date(`${slot.date}T00:00:00`);
+      return date >= today && date <= lastAvailableDate;
+    })
+    .filter((slot) => slot.slot_type !== "internal" || !isPrayerBlocked(slot.date, slot.time))
     .filter((slot) => getSlotEndDateTime(slot) > now)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 }
@@ -396,8 +514,14 @@ function getAvailableSlots() {
 function getAdminOpenSlots() {
   const now = new Date();
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
+  const externalBookedDates = new Set(
+    getReservedSlots()
+      .filter((booking) => booking.booking_type === "external")
+      .map((booking) => booking.slot.date)
+  );
   return slots
     .filter((slot) => !bookedIds.has(slot.id))
+    .filter((slot) => slot.slot_type !== "external" || !externalBookedDates.has(slot.date))
     .filter((slot) => getSlotEndDateTime(slot) > now)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 }
@@ -462,13 +586,29 @@ function askRegenerateMode() {
   });
 }
 
-function showPaymentInstructions() {
+function showBookingConfirmation(result) {
   bookingMessage.innerHTML = "";
   bookingMessage.className = "message success payment-message";
 
+  if (result.booking_type === "external") {
+    const wrapper = document.createElement("div");
+    wrapper.className = "external-message";
+    const text = document.createElement("p");
+    text.textContent = "تم تسجيل طلب الموعد خارج منطقة حائل. اضغط الزر لإرسال تفاصيل الطلب عبر واتساب.";
+    const link = document.createElement("a");
+    link.className = "whatsapp-button external-whatsapp";
+    link.textContent = "إرسال طلب الموعد عبر واتساب";
+    link.href = getExternalBookingWhatsappUrl(result.region, result.booking_number);
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    wrapper.append(text, link);
+    bookingMessage.append(wrapper);
+    return;
+  }
+
   const text = document.createElement("div");
   text.className = "payment-text";
-  ["لتأكيد الحجز يرجى تحويل مبلغ 50 ريال", "على الحساب البنكي التالي:", "SA4480000456608016164286"].forEach((line) => {
+  ["لتأكيد الحجز يرجى تحويل مبلغ 100 ريال", "على الحساب البنكي التالي:", "SA4480000456608016164286"].forEach((line) => {
     const p = document.createElement("p");
     p.textContent = line;
     text.append(p);
@@ -480,7 +620,7 @@ function showPaymentInstructions() {
   qr.alt = "صورة الحساب البنكي";
 
   const whatsapp = document.createElement("p");
-  whatsapp.textContent = "وبعد التحويل يتم الضغط على زر إرفاق إيصال التحويل في أعلى الموقع";
+  whatsapp.textContent = "وبعد التحويل يتم الضغط على زر إرفاق إيصال التحويل أسفل زر تأكيد الحجز";
 
   const saveNote = document.createElement("p");
   saveNote.className = "payment-save-note";
@@ -504,8 +644,10 @@ function showPanel(name) {
   bookingPanel.classList.toggle("active", !isAdmin);
   adminPanel.classList.toggle("active", isAdmin);
   receiptButton.classList.toggle("hidden", isAdmin);
+  recoveryButton.classList.toggle("hidden", isAdmin);
   if (isAdmin) {
     receiptPanel.classList.add("hidden");
+    recoveryPanel.classList.add("hidden");
   }
 }
 
@@ -535,7 +677,9 @@ function renderBookingOptions() {
   if (!available.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "لا توجد مواعيد متاحة حاليًا";
+    empty.textContent = locationTypeInput.value === "internal" && !prayerTimesReady
+      ? "تعذر تحميل مواقيت الصلاة حاليًا، لذلك تم إيقاف عرض مواعيد مدينة حائل مؤقتًا."
+      : "لا توجد مواعيد متاحة حاليًا";
     userSlots.append(empty);
     return;
   }
@@ -657,7 +801,7 @@ function appendAppointmentCell(row, booking) {
 
 function renderAvailableSlots() {
   const available = getAdminOpenSlots();
-  availableCount.textContent = `${getAvailableSlots().length} موعد`;
+  availableCount.textContent = `${available.filter((slot) => !slot.suspended).length} موعد`;
   availableSlots.innerHTML = "";
   updateWeekButton();
 
@@ -753,10 +897,13 @@ function renderBookingsTable() {
     if (booking.attended) {
       row.className = "attended-row";
     }
-    appendCell(row, booking.name);
+    appendCell(row, booking.name || "غير مسجل");
     appendCell(row, booking.booking_number || "-");
     appendCell(row, booking.phone);
-    appendCell(row, booking.city || "غير محدد");
+    appendCell(
+      row,
+      `${booking.region || booking.city || "غير محدد"}${booking.home_session ? "\nجلسة منزلية" : ""}`
+    );
     appendAppointmentCell(row, booking);
     appendCell(row, getBookingStatusText(booking));
     const actionsCell = document.createElement("td");
@@ -806,7 +953,7 @@ function renderReceiptBooking(booking) {
   `;
   const cells = table.querySelectorAll("td");
   [
-    booking.name,
+    booking.name || "غير مسجل",
     booking.booking_number,
     booking.slot.day,
     formatDate(booking.slot.date),
@@ -851,6 +998,14 @@ async function lookupReceiptBooking(phone, bookingNumber) {
       time: row.slot_time
     }
   };
+}
+
+async function recoverBookingNumber(phone) {
+  const rows = await api("rpc/recover_appointment_booking_number", {
+    method: "POST",
+    body: { p_phone: phone }
+  });
+  return rows?.[0] || null;
 }
 
 async function refreshAll() {
@@ -1028,14 +1183,38 @@ receiptButton.addEventListener("click", () => {
   receiptPanel.classList.remove("hidden");
 });
 
+recoveryButton.addEventListener("click", () => {
+  recoveryPanel.classList.remove("hidden");
+});
+
 closeReceiptButton.addEventListener("click", () => {
   receiptPanel.classList.add("hidden");
+});
+
+closeRecoveryButton.addEventListener("click", () => {
+  recoveryPanel.classList.add("hidden");
 });
 
 receiptPanel.addEventListener("click", (event) => {
   if (event.target === receiptPanel) {
     receiptPanel.classList.add("hidden");
   }
+});
+
+recoveryPanel.addEventListener("click", (event) => {
+  if (event.target === recoveryPanel) {
+    recoveryPanel.classList.add("hidden");
+  }
+});
+
+locationTypeInput.addEventListener("change", () => {
+  const isExternal = locationTypeInput.value === "external";
+  regionField.classList.toggle("hidden", !isExternal);
+  regionInput.required = isExternal;
+  if (!isExternal) regionInput.value = "";
+  selectedSlotId = "";
+  slotSelect.value = "";
+  renderBookingOptions();
 });
 
 adminTabs.forEach((tab) => {
@@ -1063,6 +1242,33 @@ receiptLookupForm.addEventListener("submit", async (event) => {
     showMessage(receiptMessage, `تعذر استرجاع الحجز: ${error.message}`, "error");
   } finally {
     setBusy(receiptLookupForm, false);
+  }
+});
+
+recoveryForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setBusy(recoveryForm, true);
+  showMessage(recoveryMessage, "", "");
+
+  try {
+    const phone = document.querySelector("#recoveryPhoneInput").value.trim();
+    if (!/^05\d{8}$/.test(phone)) {
+      showMessage(recoveryMessage, "رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05.", "error");
+      return;
+    }
+
+    const booking = await recoverBookingNumber(phone);
+    if (!booking) {
+      showMessage(recoveryMessage, "لم يتم العثور على حجز مسجل بهذا الرقم.", "error");
+      return;
+    }
+
+    openExternalMessage(getRecoveryWhatsappUrl(booking.phone, booking.booking_number));
+    showMessage(recoveryMessage, "تم فتح واتساب لإرسال رقم الحجز.", "success");
+  } catch (error) {
+    showMessage(recoveryMessage, `تعذر استرجاع رقم الحجز: ${error.message}`, "error");
+  } finally {
+    setBusy(recoveryForm, false);
   }
 });
 
@@ -1138,35 +1344,39 @@ bookingForm.addEventListener("submit", async (event) => {
       return;
     }
 
-    const firstName = document.querySelector("#firstNameInput").value.trim();
-    const fatherName = document.querySelector("#fatherNameInput").value.trim();
-    const lastName = document.querySelector("#lastNameInput").value.trim();
+    const name = document.querySelector("#nameInput").value.trim();
+    const locationType = locationTypeInput.value;
     const created = await api("rpc/create_appointment_booking", {
       method: "POST",
       body: {
         p_slot_id: selectedSlotForSubmit,
-        p_first_name: firstName,
-        p_father_name: fatherName,
-        p_last_name: lastName,
+        p_name: name,
         p_phone: phone,
-        p_city: cityInput.value
+        p_location_type: locationType,
+        p_region: locationType === "external" ? regionInput.value : null,
+        p_home_session: homeSessionInput.checked
       }
     });
 
     bookingForm.reset();
-    cityInput.value = "حائل";
+    locationTypeInput.value = "internal";
+    regionField.classList.add("hidden");
+    regionInput.required = false;
     selectedSlotId = "";
     slotSelect.value = "";
-    const bookingNumber = created?.[0]?.booking_number || "";
+    const bookingResult = created?.[0] || {};
+    const bookingNumber = bookingResult.booking_number || "";
     bookingNumberDisplay.classList.toggle("hidden", !bookingNumber);
     bookingNumberDisplay.textContent = bookingNumber ? `رقم الحجز: ${bookingNumber}` : "";
-    showPaymentInstructions();
+    showBookingConfirmation(bookingResult);
     await refreshAll();
   } catch (error) {
     const errorMessage = error.message.includes("PHONE_ALREADY_BOOKED")
       ? "لا يمكن حجز أكثر من موعد في نفس اليوم لنفس رقم الجوال."
       : error.message.includes("SLOT_NOT_AVAILABLE")
         ? "هذا الموعد لم يعد متاحًا. اختر موعدًا آخر."
+        : error.message.includes("EXTERNAL_DAY_BOOKED")
+          ? "تم حجز هذا اليوم لموعد خارج منطقة حائل. اختر يومًا آخر."
         : `تعذر حفظ الحجز: ${error.message}`;
     showMessage(bookingMessage, errorMessage, "error");
   } finally {
@@ -1178,6 +1388,7 @@ async function boot() {
   try {
     showMessage(bookingMessage, "جاري تحميل المواعيد...", "success");
     restoreAuthSession();
+    await loadPrayerTimes();
     await verifyAdminSession();
     await refreshAll();
     showMessage(bookingMessage, "", "");
