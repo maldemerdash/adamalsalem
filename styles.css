@@ -290,6 +290,63 @@ label span {
   margin: 0;
 }
 
+.form-section {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.form-section h3 {
+  margin: 0 0 14px;
+  color: var(--primary-dark);
+  font-size: 1.05rem;
+}
+
+.form-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.location-field {
+  grid-column: 1 / -1;
+  padding: 14px;
+  border: 1px solid #b9d8d4;
+  border-radius: 8px;
+  background: var(--primary-soft);
+}
+
+.location-field > strong {
+  color: var(--primary-dark);
+}
+
+.location-field p {
+  margin: 7px 0;
+  line-height: 1.7;
+}
+
+.location-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.location-status {
+  min-height: 24px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.location-status.success {
+  color: var(--success);
+}
+
+.location-status.error {
+  color: var(--danger);
+}
+
 input,
 select {
   width: 100%;
@@ -655,6 +712,25 @@ select:focus {
   gap: 14px;
 }
 
+.admin-schedule-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-schedule-panel {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.admin-schedule-panel h4 {
+  margin: 0 0 12px;
+  color: var(--primary-dark);
+}
+
 .day-group {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -673,31 +749,33 @@ select:focus {
 }
 
 .day-title-text {
-  display: grid;
-  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .prayer-breaks {
-  display: grid;
-  gap: 6px;
-  padding: 10px 12px 0;
+  margin: 10px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(180, 35, 24, 0.35);
+  border-radius: 6px;
+  background: var(--danger-soft);
 }
 
 .prayer-breaks p {
   margin: 0;
-  padding: 9px 11px;
-  border: 1px solid rgba(180, 35, 24, 0.18);
-  border-radius: 6px;
-  background: var(--danger-soft);
   color: var(--danger);
-  font-size: 0.9rem;
+  overflow-x: auto;
+  font-size: 0.74rem;
   font-weight: 800;
-  line-height: 1.7;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .day-group-title span,
 .day-title-text span {
-  direction: ltr;
+  direction: rtl;
 }
 
 .time-grid {
@@ -768,6 +846,30 @@ tr:has(.appointment-cell) td {
 
 .bookings-table-wrap {
   overflow-x: auto;
+}
+
+.booking-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.booking-filter-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.booking-filter-button.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
 }
 
 .bookings-table {
@@ -903,6 +1005,10 @@ tr:has(.appointment-cell) td {
   background: rgba(31, 41, 51, 0.42);
 }
 
+.choice-modal.hidden {
+  display: none;
+}
+
 .choice-dialog {
   width: min(560px, 100%);
   padding: 18px;
@@ -934,6 +1040,42 @@ tr:has(.appointment-cell) td {
 .price-agreement-dialog .price-pledge {
   color: var(--ink);
   font-weight: 800;
+}
+
+.location-agreement-notice {
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-dark) !important;
+  font-weight: 800;
+}
+
+.alternate-phone-label {
+  display: block;
+  margin: 12px 0;
+  text-align: right;
+}
+
+.field-error input {
+  border-color: var(--danger);
+  outline: 3px solid rgba(180, 35, 24, 0.12);
+}
+
+.map-picker-dialog {
+  width: min(760px, 100%);
+}
+
+.location-map {
+  width: 100%;
+  height: min(55vh, 460px);
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.map-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .choice-actions {
@@ -978,6 +1120,10 @@ tr:has(.appointment-cell) td {
     display: grid;
   }
 
+  .admin-schedule-columns {
+    grid-template-columns: 1fr;
+  }
+
   .list-actions {
     justify-content: stretch;
   }
@@ -999,9 +1145,11 @@ tr:has(.appointment-cell) td {
   }
 
   .form-grid,
+  .form-section-grid,
   .stats-grid,
   .admin-tabs,
-  .booking-support-actions {
+  .booking-support-actions,
+  .map-actions {
     grid-template-columns: 1fr;
   }
 

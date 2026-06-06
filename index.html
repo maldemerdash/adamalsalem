@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -103,50 +104,72 @@
             </aside>
 
             <form id="bookingForm" class="form-grid">
-              <label class="optional-field">
-                <span>الاسم (اختياري)</span>
-                <input id="nameInput" type="text" autocomplete="name" />
-              </label>
+              <section class="form-section">
+                <h3>بيانات طالب الحجز</h3>
+                <div class="form-section-grid">
+                  <label class="optional-field">
+                    <span>الاسم (اختياري)</span>
+                    <input id="nameInput" type="text" autocomplete="name" />
+                  </label>
 
-              <label>
-                <span>رقم الجوال</span>
-                <input id="phoneInput" type="tel" autocomplete="tel" inputmode="numeric" maxlength="10" required placeholder="05xxxxxxxx" />
-              </label>
+                  <label>
+                    <span>رقم الجوال</span>
+                    <input id="phoneInput" type="tel" autocomplete="tel" inputmode="numeric" maxlength="10" required placeholder="05xxxxxxxx" />
+                  </label>
+                </div>
+              </section>
 
-              <label>
-                <span>مكان الموعد</span>
-                <select id="locationTypeInput" required>
-                  <option value="internal" selected>داخل مدينة حائل</option>
-                  <option value="external">خارج منطقة حائل</option>
-                </select>
-              </label>
+              <section class="form-section">
+                <h3>بيانات الحجز</h3>
+                <div class="form-section-grid">
+                  <label>
+                    <span>مكان الموعد</span>
+                    <select id="locationTypeInput" required>
+                      <option value="internal" selected>داخل مدينة حائل</option>
+                      <option value="external">خارج منطقة حائل</option>
+                    </select>
+                  </label>
 
-              <label id="regionField" class="hidden">
-                <span>المنطقة</span>
-                <select id="regionInput">
-                  <option value="">اختر المنطقة</option>
-                  <option>منطقة الرياض وضواحيها</option>
-                  <option>منطقة مكة المكرمة وضواحيها</option>
-                  <option>منطقة المدينة المنورة وضواحيها</option>
-                  <option>منطقة القصيم وضواحيها</option>
-                  <option>المنطقة الشرقية وضواحيها</option>
-                  <option>منطقة تبوك وضواحيها</option>
-                  <option>منطقة الحدود الشمالية وضواحيها</option>
-                  <option>منطقة الجوف وضواحيها</option>
-                </select>
-              </label>
+                  <label id="regionField" class="hidden">
+                    <span>المنطقة</span>
+                    <select id="regionInput">
+                      <option value="">اختر المنطقة</option>
+                      <option>منطقة الرياض وضواحيها</option>
+                      <option>منطقة مكة المكرمة وضواحيها</option>
+                      <option>منطقة المدينة المنورة وضواحيها</option>
+                      <option>منطقة القصيم وضواحيها</option>
+                      <option>المنطقة الشرقية وضواحيها</option>
+                      <option>منطقة تبوك وضواحيها</option>
+                      <option>منطقة الحدود الشمالية وضواحيها</option>
+                      <option>منطقة الجوف وضواحيها</option>
+                    </select>
+                  </label>
 
-              <label id="visitCityField" class="hidden">
-                <span>المدينة</span>
-                <select id="visitCityInput">
-                  <option value="">اختر المدينة</option>
-                </select>
-              </label>
+                  <label id="visitCityField" class="hidden">
+                    <span>المدينة</span>
+                    <select id="visitCityInput">
+                      <option value="">اختر المدينة</option>
+                    </select>
+                  </label>
 
-              <label id="homeSessionField" class="checkbox-field optional-field">
-                <input id="homeSessionInput" type="checkbox" />
-                <span>حجز جلسة منزلية</span>
-              </label>
+                  <label id="homeSessionField" class="checkbox-field optional-field">
+                    <input id="homeSessionInput" type="checkbox" />
+                    <span>حجز زيارة منزلية</span>
+                  </label>
+
+                  <div id="customerLocationField" class="location-field hidden">
+                    <strong>موقع الزيارة</strong>
+                    <p>سيتم إرسال موقعك الحالي ضمن طلب الزيارة. لتعيين موقع مختلف اضغط زر اختيار موقع آخر.</p>
+                    <div class="location-actions">
+                      <button id="useCurrentLocationButton" class="secondary-action" type="button">استخدام موقعي الحالي</button>
+                      <button id="chooseLocationButton" class="outline-action" type="button">اختيار موقع آخر من الخريطة</button>
+                    </div>
+                    <p id="locationStatus" class="location-status" role="status"></p>
+                    <input id="customerLatInput" type="hidden" />
+                    <input id="customerLngInput" type="hidden" />
+                  </div>
+                </div>
+              </section>
 
               <input id="slotSelect" type="hidden" required />
 
@@ -240,7 +263,16 @@
                 <button id="regenerateSlotsButton" class="secondary-action" type="button">إعادة المواعيد الأسبوعية</button>
                 <button id="suspendWeekButton" class="danger-solid" type="button">تعليق كامل مواعيد الأسبوع</button>
               </div>
-              <div id="availableSlots" class="grouped-slots"></div>
+              <div class="admin-schedule-columns">
+                <section class="admin-schedule-panel">
+                  <h4>مواعيد مدينة حائل - أسبوعان</h4>
+                  <div id="internalAvailableSlots" class="grouped-slots"></div>
+                </section>
+                <section class="admin-schedule-panel">
+                  <h4>مواعيد خارج حائل - الشهر الحالي</h4>
+                  <div id="externalAvailableSlots" class="grouped-slots"></div>
+                </section>
+              </div>
             </div>
             </div>
 
@@ -251,6 +283,11 @@
                   <h3>المواعيد المحجوزة</h3>
                   <p>إدارة التأكيد، واتساب، الحضور، أو إلغاء الحجز.</p>
                 </div>
+              </div>
+              <div class="booking-filter" role="group" aria-label="تصفية المواعيد المحجوزة">
+                <button class="booking-filter-button active" type="button" data-booking-filter="all">الكل</button>
+                <button class="booking-filter-button" type="button" data-booking-filter="internal">مواعيد حائل</button>
+                <button class="booking-filter-button" type="button" data-booking-filter="external">خارج حائل</button>
               </div>
               <div class="bookings-table-wrap">
                 <table class="bookings-table">
@@ -275,8 +312,21 @@
       </section>
 
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+      <div id="mapPickerPanel" class="choice-modal hidden" role="dialog" aria-modal="true" aria-label="اختيار موقع الزيارة">
+        <div class="choice-dialog map-picker-dialog">
+          <h3>اختيار موقع الزيارة</h3>
+          <p>حرّك الخريطة واضغط على الموقع المطلوب، ثم أكّد الاختيار.</p>
+          <div id="locationMap" class="location-map"></div>
+          <div class="choice-actions map-actions">
+            <button id="confirmMapLocationButton" class="secondary-action" type="button">تأكيد الموقع</button>
+            <button id="cancelMapLocationButton" class="outline-action" type="button">إلغاء</button>
+          </div>
+        </div>
+      </div>
     </main>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="app.js"></script>
   </body>
 </html>
