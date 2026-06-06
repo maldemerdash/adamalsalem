@@ -240,18 +240,9 @@ h3 {
   white-space: nowrap;
 }
 
-.login-grid,
-.credentials-grid {
+.login-grid {
   grid-template-columns: 1fr;
   align-content: start;
-}
-
-.credentials-grid {
-  margin-bottom: 14px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-2);
 }
 
 label span {

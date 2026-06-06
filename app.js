@@ -1,11 +1,8 @@
 const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
-const DEFAULT_ADMIN_USERNAME = "admin";
-const DEFAULT_ADMIN_PASSWORD = "123456";
 const SCHEDULE_VERSION = "weekly-v4";
 const START_HOUR = 17;
 const END_HOUR = 21;
-const PAYMENT_HOLD_MINUTES = 15;
 const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
 const RECEIPT_WHATSAPP_PHONE = "966555707854";
 const WORK_DAYS = [
@@ -37,23 +34,19 @@ let slots = [];
 let bookings = [];
 let deletedSlots = [];
 let selectedSlotId = "";
-let adminCredentials = {
-  username: DEFAULT_ADMIN_USERNAME,
-  password: DEFAULT_ADMIN_PASSWORD
-};
+let authSession = null;
+let isAdmin = false;
 
 const bookingPanel = document.querySelector("#bookingPanel");
 const adminPanel = document.querySelector("#adminPanel");
 const bookingForm = document.querySelector("#bookingForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
-const credentialsForm = document.querySelector("#credentialsForm");
 const slotSelect = document.querySelector("#slotSelect");
 const cityInput = document.querySelector("#cityInput");
 const userSlots = document.querySelector("#userSlots");
 const bookingMessage = document.querySelector("#bookingMessage");
 const bookingNumberDisplay = document.querySelector("#bookingNumberDisplay");
 const loginMessage = document.querySelector("#loginMessage");
-const adminMessage = document.querySelector("#adminMessage");
 const receiptButton = document.querySelector("#receiptButton");
 const receiptPanel = document.querySelector("#receiptPanel");
 const closeReceiptButton = document.querySelector("#closeReceiptButton");
@@ -65,7 +58,6 @@ const adminDashboard = document.querySelector("#adminDashboard");
 const adminLoginButton = document.querySelector("#adminLoginButton");
 const backToBookingButton = document.querySelector("#backToBookingButton");
 const logoutButton = document.querySelector("#logoutButton");
-const showCredentialsButton = document.querySelector("#showCredentialsButton");
 const regenerateSlotsButton = document.querySelector("#regenerateSlotsButton");
 const suspendWeekButton = document.querySelector("#suspendWeekButton");
 const availableSlots = document.querySelector("#availableSlots");
@@ -78,26 +70,24 @@ const adminBookingsView = document.querySelector("#adminBookingsView");
 const toast = document.querySelector("#toast");
 let toastTimer = null;
 
-const adminSession = {
-  get isLoggedIn() {
-    return sessionStorage.getItem("appointmentAdminLoggedIn") === "true";
-  },
-  set isLoggedIn(value) {
-    sessionStorage.setItem("appointmentAdminLoggedIn", value ? "true" : "false");
-  }
-};
+const AUTH_STORAGE_KEY = "appointmentAdminSession";
 
 async function api(path, options = {}) {
+  const accessToken = authSession?.access_token || SUPABASE_KEY;
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method: options.method || "GET",
     headers: {
       apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       ...(options.headers || {})
     },
     body: options.body ? JSON.stringify(options.body) : undefined
   });
+
+  if (response.status === 401 && authSession && !options.retried && await refreshAuthSession()) {
+    return api(path, { ...options, retried: true });
+  }
 
   if (!response.ok) {
     const details = await response.text();
@@ -109,18 +99,81 @@ async function api(path, options = {}) {
   return JSON.parse(text);
 }
 
-function pad(value) {
-  return String(value).padStart(2, "0");
+async function authApi(path, body) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.error_description || result.msg || result.message || "تعذر تسجيل الدخول.");
+  }
+  return result;
 }
 
-function createId() {
-  if (window.crypto && typeof window.crypto.randomUUID === "function") {
-    return window.crypto.randomUUID();
+function saveAuthSession(session) {
+  authSession = session;
+  if (session) {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+}
+
+function restoreAuthSession() {
+  try {
+    authSession = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)) || null;
+  } catch {
+    saveAuthSession(null);
+  }
+}
+
+async function refreshAuthSession() {
+  if (!authSession?.refresh_token) return false;
+
+  try {
+    const session = await authApi("token?grant_type=refresh_token", {
+      refresh_token: authSession.refresh_token
+    });
+    saveAuthSession(session);
+    return true;
+  } catch {
+    saveAuthSession(null);
+    isAdmin = false;
+    return false;
+  }
+}
+
+async function verifyAdminSession(allowRefresh = true) {
+  if (!authSession?.access_token) {
+    isAdmin = false;
+    return false;
   }
 
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (value) => {
-    return (Number(value) ^ Math.random() * 16 >> Number(value) / 4).toString(16);
-  });
+  try {
+    const result = await api("rpc/is_appointment_admin", {
+      method: "POST",
+      body: {}
+    });
+    isAdmin = result === true;
+    if (!isAdmin) saveAuthSession(null);
+    return isAdmin;
+  } catch {
+    if (allowRefresh && await refreshAuthSession()) {
+      return verifyAdminSession(false);
+    }
+    isAdmin = false;
+    return false;
+  }
+}
+
+function pad(value) {
+  return String(value).padStart(2, "0");
 }
 
 function toDateKey(date) {
@@ -249,28 +302,21 @@ function getReceiptWhatsappUrl(booking) {
   return `https://wa.me/${RECEIPT_WHATSAPP_PHONE}?text=${message}`;
 }
 
-async function loadAdminSettings() {
-  try {
-    const rows = await api("appointment_settings?id=eq.admin&select=value");
-    const value = rows?.[0]?.value;
-    if (value?.username && value?.password) {
-      adminCredentials = value;
-    }
-  } catch (error) {
-    console.warn("Admin settings table is not ready yet.", error);
-  }
-}
-
-async function saveAdminSettings(username, password) {
-  adminCredentials = { username, password };
-  await api("appointment_settings?on_conflict=id", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: [{ id: "admin", value: adminCredentials }]
-  });
-}
-
 async function loadData() {
+  if (!isAdmin) {
+    const publicSlots = await api("rpc/get_available_appointment_slots", {
+      method: "POST",
+      body: {}
+    }) || [];
+    slots = publicSlots.map((slot) => ({
+      ...slot,
+      time: slot.slot_time
+    }));
+    bookings = [];
+    deletedSlots = [];
+    return;
+  }
+
   const [slotRows, bookingRows, deletedRows] = await Promise.all([
     api("appointment_slots?select=*&order=date.asc,time.asc"),
     api("appointment_bookings?select=*&order=created_at.desc"),
@@ -283,18 +329,15 @@ async function loadData() {
 }
 
 async function cleanupExpiredPendingBookings() {
-  const expired = bookings.filter((booking) => isPendingExpired(booking));
-
-  for (const booking of expired) {
-    await api(`appointment_bookings?id=eq.${booking.id}`, { method: "DELETE" });
-  }
-
-  if (expired.length) {
-    await loadData();
-  }
+  await api("rpc/cleanup_expired_appointment_bookings", {
+    method: "POST",
+    body: {}
+  });
 }
 
 async function insertMissingWeeklySlots({ restoreDeleted = false } = {}) {
+  if (!isAdmin) return 0;
+
   const generatedIds = new Set(getManagedWeekStarts().flatMap((weekStart) => {
     return buildWeeklySlots(weekStart).map((slot) => slot.id);
   }));
@@ -357,13 +400,6 @@ function getAdminOpenSlots() {
     .filter((slot) => !bookedIds.has(slot.id))
     .filter((slot) => getSlotEndDateTime(slot) > now)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
-}
-
-function hasPhoneBookingOnDate(phone, date) {
-  const normalizedPhone = normalizePhone(phone);
-  return getReservedSlots().some((booking) => {
-    return normalizePhone(booking.phone) === normalizedPhone && booking.slot.date === date;
-  });
 }
 
 function groupSlotsByDate(rows) {
@@ -483,8 +519,8 @@ function showAdminView(name) {
 }
 
 function renderAdminAccess() {
-  adminLoginView.classList.toggle("hidden", adminSession.isLoggedIn);
-  adminDashboard.classList.toggle("hidden", !adminSession.isLoggedIn);
+  adminLoginView.classList.toggle("hidden", isAdmin);
+  adminDashboard.classList.toggle("hidden", !isAdmin);
 }
 
 function renderBookingOptions() {
@@ -796,16 +832,34 @@ function renderReceiptBooking(booking) {
 }
 
 async function lookupReceiptBooking(phone, bookingNumber) {
-  await refreshAll();
-  return getReservedSlots().find((booking) => {
-    return normalizePhone(booking.phone) === normalizePhone(phone) && booking.booking_number === bookingNumber;
+  const rows = await api("rpc/lookup_appointment_booking", {
+    method: "POST",
+    body: {
+      p_phone: phone,
+      p_booking_number: bookingNumber
+    }
   });
+  const row = rows?.[0];
+  if (!row) return null;
+
+  return {
+    ...row,
+    slot: {
+      id: row.slot_id,
+      day: row.slot_day,
+      date: row.slot_date,
+      time: row.slot_time
+    }
+  };
 }
 
 async function refreshAll() {
   await loadData();
-  await cleanupExpiredPendingBookings();
-  await insertMissingWeeklySlots();
+  if (isAdmin) {
+    await cleanupExpiredPendingBookings();
+    await loadData();
+    await insertMissingWeeklySlots();
+  }
   renderAll();
 }
 
@@ -1012,51 +1066,49 @@ receiptLookupForm.addEventListener("submit", async (event) => {
   }
 });
 
-adminLoginForm.addEventListener("submit", (event) => {
+adminLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const username = document.querySelector("#adminUsername").value.trim();
+  setBusy(adminLoginForm, true);
+  const email = document.querySelector("#adminEmail").value.trim();
   const password = document.querySelector("#adminPassword").value;
 
-  if (username !== adminCredentials.username || password !== adminCredentials.password) {
-    showMessage(loginMessage, "اسم المستخدم أو كلمة المرور غير صحيحة.", "error");
-    return;
-  }
-
-  adminSession.isLoggedIn = true;
-  adminLoginForm.reset();
-  showMessage(loginMessage, "", "");
-  showToast("تم تسجيل الدخول بنجاح.");
-  renderAll();
-});
-
-showCredentialsButton.addEventListener("click", () => {
-  credentialsForm.classList.toggle("hidden");
-  document.querySelector("#newAdminUsername").value = adminCredentials.username;
-  document.querySelector("#newAdminPassword").value = adminCredentials.password;
-});
-
-credentialsForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  setBusy(credentialsForm, true);
-
   try {
-    const username = document.querySelector("#newAdminUsername").value.trim();
-    const password = document.querySelector("#newAdminPassword").value;
-    await saveAdminSettings(username, password);
-    credentialsForm.classList.add("hidden");
-    showToast("تم حفظ اسم المستخدم وكلمة المرور.");
+    const session = await authApi("token?grant_type=password", { email, password });
+    saveAuthSession(session);
+
+    if (!await verifyAdminSession()) {
+      throw new Error("هذا الحساب لا يملك صلاحية إدارة نظام المواعيد.");
+    }
+
+    adminLoginForm.reset();
+    showMessage(loginMessage, "", "");
+    showToast("تم تسجيل الدخول بنجاح.");
+    await refreshAll();
   } catch (error) {
-    showToast(`تعذر حفظ بيانات الدخول: ${error.message}`);
+    saveAuthSession(null);
+    isAdmin = false;
+    showMessage(loginMessage, error.message || "البريد الإلكتروني أو كلمة المرور غير صحيحة.", "error");
+    renderAll();
   } finally {
-    setBusy(credentialsForm, false);
+    setBusy(adminLoginForm, false);
   }
 });
 
-logoutButton.addEventListener("click", () => {
-  adminSession.isLoggedIn = false;
-  credentialsForm.classList.add("hidden");
+logoutButton.addEventListener("click", async () => {
+  if (authSession?.access_token) {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${authSession.access_token}`
+      }
+    }).catch(() => {});
+  }
+  saveAuthSession(null);
+  isAdmin = false;
   showToast("تم تسجيل الخروج.");
-  renderAll();
+  showPanel("booking");
+  await refreshAll();
 });
 
 bookingForm.addEventListener("submit", async (event) => {
@@ -1071,10 +1123,10 @@ bookingForm.addEventListener("submit", async (event) => {
   setBusy(bookingForm, true);
 
   try {
-    await refreshAll();
+    await loadData();
     const slot = slots.find((item) => item.id === selectedSlotForSubmit);
 
-    if (!slot || bookings.some((booking) => booking.slot_id === selectedSlotForSubmit)) {
+    if (!slot) {
       showMessage(bookingMessage, "هذا الموعد لم يعد متاحًا. اختر موعدًا آخر.", "error");
       return;
     }
@@ -1086,32 +1138,19 @@ bookingForm.addEventListener("submit", async (event) => {
       return;
     }
 
-    if (hasPhoneBookingOnDate(phone, slot.date)) {
-      showMessage(bookingMessage, "لا يمكن حجز أكثر من موعد في نفس اليوم لنفس رقم الجوال.", "error");
-      return;
-    }
-
     const firstName = document.querySelector("#firstNameInput").value.trim();
     const fatherName = document.querySelector("#fatherNameInput").value.trim();
     const lastName = document.querySelector("#lastNameInput").value.trim();
-    const fullName = `${firstName} ${fatherName} ${lastName}`;
-
-    const created = await api("appointment_bookings", {
+    const created = await api("rpc/create_appointment_booking", {
       method: "POST",
-      headers: { Prefer: "return=representation" },
-      body: [{
-        id: createId(),
-        slot_id: selectedSlotForSubmit,
-        name: fullName,
-        first_name: firstName,
-        father_name: fatherName,
-        last_name: lastName,
-        phone,
-        city: cityInput.value,
-        confirmed: false,
-        attended: false,
-        expires_at: new Date(Date.now() + PAYMENT_HOLD_MINUTES * 60 * 1000).toISOString()
-      }]
+      body: {
+        p_slot_id: selectedSlotForSubmit,
+        p_first_name: firstName,
+        p_father_name: fatherName,
+        p_last_name: lastName,
+        p_phone: phone,
+        p_city: cityInput.value
+      }
     });
 
     bookingForm.reset();
@@ -1124,7 +1163,12 @@ bookingForm.addEventListener("submit", async (event) => {
     showPaymentInstructions();
     await refreshAll();
   } catch (error) {
-    showMessage(bookingMessage, `تعذر حفظ الحجز: ${error.message}`, "error");
+    const errorMessage = error.message.includes("PHONE_ALREADY_BOOKED")
+      ? "لا يمكن حجز أكثر من موعد في نفس اليوم لنفس رقم الجوال."
+      : error.message.includes("SLOT_NOT_AVAILABLE")
+        ? "هذا الموعد لم يعد متاحًا. اختر موعدًا آخر."
+        : `تعذر حفظ الحجز: ${error.message}`;
+    showMessage(bookingMessage, errorMessage, "error");
   } finally {
     setBusy(bookingForm, false);
   }
@@ -1133,7 +1177,8 @@ bookingForm.addEventListener("submit", async (event) => {
 async function boot() {
   try {
     showMessage(bookingMessage, "جاري تحميل المواعيد...", "success");
-    await loadAdminSettings();
+    restoreAuthSession();
+    await verifyAdminSession();
     await refreshAll();
     showMessage(bookingMessage, "", "");
   } catch (error) {
@@ -1143,4 +1188,8 @@ async function boot() {
 }
 
 boot();
-setInterval(refreshAll, 60 * 1000);
+setInterval(() => {
+  refreshAll().catch((error) => {
+    console.error("تعذر تحديث بيانات المواعيد.", error);
+  });
+}, 60 * 1000);
