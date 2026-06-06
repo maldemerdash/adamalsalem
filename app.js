@@ -690,6 +690,18 @@ async function cleanupExpiredPendingBookings() {
 async function insertMissingWeeklySlots({ restoreDeleted = false } = {}) {
   if (!isAdmin) return 0;
 
+  const activeTemplateIds = new Set(visitTemplates.map((template) => template.id));
+  const orphanedHomeSlots = slots.filter((slot) => {
+    if (slot.slot_type !== "home" || slot.schedule_version !== SCHEDULE_VERSION) return false;
+    const templateId = slot.id.split(":")[2];
+    return templateId && !activeTemplateIds.has(templateId)
+      && !bookings.some((booking) => booking.slot_id === slot.id);
+  });
+  for (const slot of orphanedHomeSlots) {
+    await api(`appointment_slots?id=eq.${encodeURIComponent(slot.id)}`, { method: "DELETE" });
+  }
+  if (orphanedHomeSlots.length) await loadData();
+
   const generatedIds = new Set(getManagedWeekStarts().flatMap((weekStart) => {
     return buildWeeklySlots(weekStart).map((slot) => slot.id);
   }));
@@ -712,7 +724,7 @@ async function insertMissingWeeklySlots({ restoreDeleted = false } = {}) {
     .flatMap((weekStart) => buildWeeklySlots(weekStart))
     .filter((slot) => !existingIds.has(slot.id))
     .filter((slot) => !bookedIds.has(slot.id))
-    .filter((slot) => restoreDeleted || !deletedIds.has(slot.id));
+    .filter((slot) => slot.slot_type !== "internal" || restoreDeleted || !deletedIds.has(slot.id));
 
   if (!generatedSlots.length) return 0;
 
@@ -1126,6 +1138,25 @@ function renderBookingOptions() {
     return;
   }
 
+  if (getCurrentBookingType() === "external") {
+    selectedBookingDate = "";
+    const packageGrid = document.createElement("div");
+    packageGrid.className = "package-grid customer-package-grid";
+    available.forEach((slot) => {
+      const card = createPackageCard(slot, {
+        selected: selectedSlotId === slot.id,
+        onSelect: () => {
+          selectedSlotId = slot.id;
+          slotSelect.value = slot.id;
+          renderBookingOptions();
+        }
+      });
+      packageGrid.append(card);
+    });
+    userSlots.append(packageGrid);
+    return;
+  }
+
   const groups = Object.values(groupSlotsByDate(available));
   if (!selectedBookingDate || !groups.some((group) => group.date === selectedBookingDate)) {
     selectedBookingDate = groups[0].date;
@@ -1191,6 +1222,32 @@ function renderBookingOptions() {
   });
   section.append(times);
   userSlots.append(section);
+}
+
+function createPackageCard(slot, { selected = false, onSelect = null, admin = false } = {}) {
+  const card = document.createElement(onSelect ? "button" : "article");
+  if (onSelect) card.type = "button";
+  card.className = `package-card ${selected ? "selected" : ""} ${slot.suspended ? "suspended-slot" : ""}`;
+
+  const badge = document.createElement("span");
+  badge.className = "package-badge";
+  badge.textContent = "باقة 3 أيام";
+  const title = document.createElement("strong");
+  title.textContent = slot.title || "باقة زيارة خارج مدينة حائل";
+  const days = document.createElement("span");
+  days.className = "package-days";
+  days.textContent = "الخميس، الجمعة، السبت";
+  const dates = document.createElement("span");
+  dates.className = "package-dates";
+  dates.textContent = formatDateRange(slot.date, slot.package_end_date);
+  card.append(badge, title, days, dates);
+
+  if (onSelect) {
+    card.addEventListener("click", onSelect);
+    card.setAttribute("aria-label", `اختيار ${title.textContent} ${dates.textContent}`);
+  }
+  if (admin) card.classList.add("admin-package-card");
+  return card;
 }
 
 function appendButton(parent, className, text, onClick) {
@@ -1306,7 +1363,9 @@ function renderAdminSlotGroup(container, available) {
     title.append(titleText, dayButton);
 
     const times = document.createElement("div");
-    times.className = "time-grid";
+    times.className = group.slots.some((slot) => slot.slot_type === "home")
+      ? "visit-option-grid admin-home-grid"
+      : "time-grid";
 
     group.slots.forEach((slot) => {
       const item = document.createElement("div");
@@ -1324,7 +1383,9 @@ function renderAdminSlotGroup(container, available) {
         slot.suspended ? ICONS.play : ICONS.pause,
         () => toggleSlotSuspension(slot.id, !slot.suspended)
       );
-      appendIconButton(item, "danger-button", "حذف الموعد", ICONS.trash, () => deleteSlot(slot.id));
+      if (slot.slot_type === "internal") {
+        appendIconButton(item, "danger-button", "حذف الموعد", ICONS.trash, () => deleteSlot(slot.id));
+      }
       item.prepend(time);
       times.append(item);
     });
@@ -1338,6 +1399,34 @@ function renderAdminSlotGroup(container, available) {
   });
 }
 
+function renderAdminPackageGrid(container, available) {
+  container.innerHTML = "";
+  if (!available.length) {
+    container.innerHTML = '<p class="empty-state">لا توجد باقات متاحة.</p>';
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "package-grid admin-package-grid";
+  available.forEach((slot) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "package-admin-item";
+    wrapper.append(createPackageCard(slot, { admin: true }));
+    const action = document.createElement("div");
+    action.className = "package-card-action";
+    appendIconButton(
+      action,
+      slot.suspended ? "attendance-button" : "outline-action",
+      slot.suspended ? "إتاحة الباقة" : "تعليق الباقة",
+      slot.suspended ? ICONS.play : ICONS.pause,
+      () => toggleSlotSuspension(slot.id, !slot.suspended)
+    );
+    wrapper.append(action);
+    grid.append(wrapper);
+  });
+  container.append(grid);
+}
+
 function renderAvailableSlots() {
   const internal = getAdminOpenSlots("internal");
   const home = getAdminOpenSlots("home");
@@ -1347,7 +1436,7 @@ function renderAvailableSlots() {
   updateWeekButton();
   renderAdminSlotGroup(internalAvailableSlots, internal);
   renderAdminSlotGroup(homeAvailableSlots, home);
-  renderAdminSlotGroup(externalAvailableSlots, external);
+  renderAdminPackageGrid(externalAvailableSlots, external);
 }
 
 function getCurrentWeekOpenSlots() {

@@ -616,15 +616,15 @@ select:focus {
 
 .user-day-choices {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
 
 .day-choice {
-  display: flex;
+  display: grid;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-height: 54px;
   padding: 10px 12px;
   border: 1px solid var(--line);
@@ -633,6 +633,11 @@ select:focus {
   color: var(--ink);
   cursor: pointer;
   font-family: inherit;
+}
+
+.day-choice strong,
+.day-choice span {
+  text-align: center;
 }
 
 .day-choice span {
@@ -657,6 +662,80 @@ select:focus {
   justify-content: center;
   min-height: 58px;
   text-align: center;
+}
+
+.package-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.package-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  width: 100%;
+  min-height: 170px;
+  padding: 16px;
+  border: 1px solid #b9d8d4;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff 0%, var(--primary-soft) 100%);
+  color: var(--ink);
+  font-family: inherit;
+  text-align: right;
+}
+
+button.package-card {
+  cursor: pointer;
+}
+
+.package-card.selected {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.18);
+}
+
+.package-card strong {
+  color: var(--primary-dark);
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+
+.package-badge {
+  justify-self: start;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.package-days {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.package-dates {
+  margin-top: auto;
+  padding-top: 9px;
+  border-top: 1px solid rgba(15, 118, 110, 0.18);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.package-admin-item {
+  position: relative;
+}
+
+.package-card-action {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+}
+
+.admin-package-card {
+  padding-top: 54px;
 }
 
 .back-button {
@@ -1268,6 +1347,10 @@ tr:has(.appointment-cell) td {
   .list-actions button {
     width: 100%;
   }
+
+  .package-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -1291,6 +1374,14 @@ tr:has(.appointment-cell) td {
   .template-form,
   .booking-support-actions,
   .map-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .user-day-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .package-grid {
     grid-template-columns: 1fr;
   }
 
