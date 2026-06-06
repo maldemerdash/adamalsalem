@@ -63,6 +63,7 @@ const slotSelect = document.querySelector("#slotSelect");
 const locationTypeInput = document.querySelector("#locationTypeInput");
 const regionField = document.querySelector("#regionField");
 const regionInput = document.querySelector("#regionInput");
+const homeSessionField = document.querySelector("#homeSessionField");
 const homeSessionInput = document.querySelector("#homeSessionInput");
 const userSlots = document.querySelector("#userSlots");
 const bookingMessage = document.querySelector("#bookingMessage");
@@ -277,6 +278,42 @@ function isPrayerBlocked(dateKey, time) {
     const prayerEnd = Math.ceil((prayerStart + 30) / 30) * 30;
     return slotStart < prayerEnd && slotEnd > prayerStart;
   });
+}
+
+function minutesToTime(minutes) {
+  const normalizedMinutes = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${pad(Math.floor(normalizedMinutes / 60))}:${pad(normalizedMinutes % 60)}`;
+}
+
+function getPrayerBreaks(dateKey) {
+  const prayers = prayerTimesByDate.get(dateKey);
+  if (!prayers) return [];
+
+  return [
+    { name: "المغرب", start: prayers.maghrib },
+    { name: "العشاء", start: prayers.isha }
+  ].filter((prayer) => prayer.start !== null).map((prayer) => {
+    const end = Math.ceil((prayer.start + 30) / 30) * 30;
+    return {
+      ...prayer,
+      end,
+      text: `تم إلغاء الحجز من الساعة ${formatTime(minutesToTime(prayer.start))} إلى الساعة ${formatTime(minutesToTime(end))} لأداء صلاة ${prayer.name}.`
+    };
+  });
+}
+
+function appendPrayerBreaks(parent, dateKey) {
+  const breaks = getPrayerBreaks(dateKey);
+  if (!breaks.length) return;
+
+  const container = document.createElement("div");
+  container.className = "prayer-breaks";
+  breaks.forEach((prayer) => {
+    const note = document.createElement("p");
+    note.textContent = `(${prayer.text})`;
+    container.append(note);
+  });
+  parent.append(container);
 }
 
 function buildWeeklySlots(weekStart) {
@@ -608,7 +645,8 @@ function showBookingConfirmation(result) {
 
   const text = document.createElement("div");
   text.className = "payment-text";
-  ["لتأكيد الحجز يرجى تحويل مبلغ 100 ريال", "على الحساب البنكي التالي:", "SA4480000456608016164286"].forEach((line) => {
+  const amount = result.home_session ? 300 : 100;
+  [`لتأكيد الحجز يرجى تحويل مبلغ ${amount} ريال`, "على الحساب البنكي التالي:", "SA4480000456608016164286"].forEach((line) => {
     const p = document.createElement("p");
     p.textContent = line;
     text.append(p);
@@ -719,7 +757,11 @@ function renderBookingOptions() {
       times.append(item);
     });
 
-    section.append(title, times);
+    section.append(title);
+    if (locationTypeInput.value === "internal") {
+      appendPrayerBreaks(section, group.date);
+    }
+    section.append(times);
     userSlots.append(section);
   });
 }
@@ -850,7 +892,11 @@ function renderAvailableSlots() {
       times.append(item);
     });
 
-    section.append(title, times);
+    section.append(title);
+    if (group.slots.some((slot) => slot.slot_type === "internal")) {
+      appendPrayerBreaks(section, group.date);
+    }
+    section.append(times);
     availableSlots.append(section);
   });
 }
@@ -1211,7 +1257,12 @@ locationTypeInput.addEventListener("change", () => {
   const isExternal = locationTypeInput.value === "external";
   regionField.classList.toggle("hidden", !isExternal);
   regionInput.required = isExternal;
-  if (!isExternal) regionInput.value = "";
+  homeSessionField.classList.toggle("hidden", isExternal);
+  if (isExternal) {
+    homeSessionInput.checked = false;
+  } else {
+    regionInput.value = "";
+  }
   selectedSlotId = "";
   slotSelect.value = "";
   renderBookingOptions();
@@ -1362,6 +1413,7 @@ bookingForm.addEventListener("submit", async (event) => {
     locationTypeInput.value = "internal";
     regionField.classList.add("hidden");
     regionInput.required = false;
+    homeSessionField.classList.remove("hidden");
     selectedSlotId = "";
     slotSelect.value = "";
     const bookingResult = created?.[0] || {};
