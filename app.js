@@ -27,6 +27,8 @@ const MESSAGES = {
         booking.name ? `مرحبًا ${booking.name}` : "مرحبًا",
         "تم تأكيد موعد الزيارة خارج منطقة حائل.",
         `المنطقة: ${booking.region || booking.city}`,
+        `المدينة: ${booking.visit_city || "-"}`,
+        `قيمة الزيارة: ${formatPrice(booking.visit_price)} ريال`,
         `اليوم: ${booking.slot.day}`,
         `التاريخ: ${booking.slot.date}`,
         `الساعة: ${formatTime(booking.slot.time)}`,
@@ -52,6 +54,7 @@ let deletedSlots = [];
 let selectedSlotId = "";
 let authSession = null;
 let isAdmin = false;
+let visitCities = [];
 let prayerTimesReady = false;
 const prayerTimesByDate = new Map();
 
@@ -63,6 +66,8 @@ const slotSelect = document.querySelector("#slotSelect");
 const locationTypeInput = document.querySelector("#locationTypeInput");
 const regionField = document.querySelector("#regionField");
 const regionInput = document.querySelector("#regionInput");
+const visitCityField = document.querySelector("#visitCityField");
+const visitCityInput = document.querySelector("#visitCityInput");
 const homeSessionField = document.querySelector("#homeSessionField");
 const homeSessionInput = document.querySelector("#homeSessionInput");
 const userSlots = document.querySelector("#userSlots");
@@ -441,6 +446,39 @@ function getExternalBookingWhatsappUrl(region, bookingNumber) {
   return `https://wa.me/${RECEIPT_WHATSAPP_PHONE}?text=${message}`;
 }
 
+function formatPrice(value) {
+  return new Intl.NumberFormat("ar-SA", {
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
+}
+
+async function loadVisitCities() {
+  visitCities = await api("rpc/get_appointment_visit_cities", {
+    method: "POST",
+    body: {}
+  }) || [];
+}
+
+function renderVisitCityOptions() {
+  const selectedRegion = regionInput.value;
+  visitCityInput.innerHTML = '<option value="">اختر المدينة</option>';
+
+  visitCities
+    .filter((item) => item.region === selectedRegion)
+    .forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.city;
+      option.textContent = item.city;
+      visitCityInput.append(option);
+    });
+}
+
+function getSelectedVisitCity() {
+  return visitCities.find((item) => {
+    return item.region === regionInput.value && item.city === visitCityInput.value;
+  }) || null;
+}
+
 function getRecoveryWhatsappUrl(phone, bookingNumber) {
   const message = encodeURIComponent(`رقم حجزك هو: ${bookingNumber}`);
   return `https://wa.me/${toWhatsappPhone(phone)}?text=${message}`;
@@ -623,6 +661,58 @@ function askRegenerateMode() {
   });
 }
 
+function askVisitPriceAgreement(city) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+
+    const dialog = document.createElement("div");
+    dialog.className = "choice-dialog price-agreement-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-label", "الموافقة على قيمة الزيارة");
+
+    const title = document.createElement("h3");
+    title.textContent = "تعهد بالموافقة على قيمة الزيارة";
+
+    const destination = document.createElement("p");
+    destination.textContent = `المدينة المختارة: ${city.city}`;
+
+    const price = document.createElement("strong");
+    price.className = "visit-price";
+    price.textContent = `قيمة الزيارة: ${formatPrice(city.visit_price)} ريال`;
+
+    const pledge = document.createElement("p");
+    pledge.className = "price-pledge";
+    pledge.textContent = "أتعهد بموافقتي على قيمة الزيارة الموضحة أعلاه وأرغب في تأكيد طلب الحجز.";
+
+    const actions = document.createElement("div");
+    actions.className = "choice-actions";
+    const agreeButton = document.createElement("button");
+    agreeButton.className = "secondary-action";
+    agreeButton.type = "button";
+    agreeButton.textContent = "أوافق وأؤكد الحجز";
+    const cancelButton = document.createElement("button");
+    cancelButton.className = "outline-action";
+    cancelButton.type = "button";
+    cancelButton.textContent = "إلغاء";
+    actions.append(agreeButton, cancelButton);
+    dialog.append(title, destination, price, pledge, actions);
+    overlay.append(dialog);
+
+    const close = (value) => {
+      overlay.remove();
+      resolve(value);
+    };
+    agreeButton.addEventListener("click", () => close(true));
+    cancelButton.addEventListener("click", () => close(false));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close(false);
+    });
+    document.body.append(overlay);
+  });
+}
+
 function showBookingConfirmation(result) {
   bookingMessage.innerHTML = "";
   bookingMessage.className = "message success payment-message";
@@ -631,11 +721,14 @@ function showBookingConfirmation(result) {
     const wrapper = document.createElement("div");
     wrapper.className = "external-message";
     const text = document.createElement("p");
-    text.textContent = "تم تسجيل طلب الموعد خارج منطقة حائل. اضغط الزر لإرسال تفاصيل الطلب عبر واتساب.";
+    text.textContent = `تم تسجيل طلب الموعد في ${result.visit_city}. قيمة الزيارة: ${formatPrice(result.visit_price)} ريال.`;
     const link = document.createElement("a");
     link.className = "whatsapp-button external-whatsapp";
     link.textContent = "إرسال طلب الموعد عبر واتساب";
-    link.href = getExternalBookingWhatsappUrl(result.region, result.booking_number);
+    link.href = getExternalBookingWhatsappUrl(
+      `${result.visit_city} - ${result.region}\nقيمة الزيارة: ${formatPrice(result.visit_price)} ريال`,
+      result.booking_number
+    );
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     wrapper.append(text, link);
@@ -948,7 +1041,12 @@ function renderBookingsTable() {
     appendCell(row, booking.phone);
     appendCell(
       row,
-      `${booking.region || booking.city || "غير محدد"}${booking.home_session ? "\nجلسة منزلية" : ""}`
+      [
+        booking.region || booking.city || "غير محدد",
+        booking.visit_city || null,
+        booking.visit_price ? `قيمة الزيارة: ${formatPrice(booking.visit_price)} ريال` : null,
+        booking.home_session ? "جلسة منزلية" : null
+      ].filter(Boolean).join("\n")
     );
     appendAppointmentCell(row, booking);
     appendCell(row, getBookingStatusText(booking));
@@ -995,6 +1093,7 @@ function renderReceiptBooking(booking) {
       <tr><th>التاريخ</th><td></td></tr>
       <tr><th>الساعة</th><td></td></tr>
       <tr><th>المدينة</th><td></td></tr>
+      <tr class="visit-price-row"><th>قيمة الزيارة</th><td></td></tr>
     </tbody>
   `;
   const cells = table.querySelectorAll("td");
@@ -1004,7 +1103,8 @@ function renderReceiptBooking(booking) {
     booking.slot.day,
     formatDate(booking.slot.date),
     formatTime(booking.slot.time),
-    booking.city || "غير محدد"
+    booking.visit_city || booking.city || "غير محدد",
+    booking.visit_price ? `${formatPrice(booking.visit_price)} ريال` : "-"
   ].forEach((value, index) => {
     cells[index].textContent = value;
   });
@@ -1256,16 +1356,24 @@ recoveryPanel.addEventListener("click", (event) => {
 locationTypeInput.addEventListener("change", () => {
   const isExternal = locationTypeInput.value === "external";
   regionField.classList.toggle("hidden", !isExternal);
+  visitCityField.classList.toggle("hidden", !isExternal);
   regionInput.required = isExternal;
+  visitCityInput.required = isExternal;
   homeSessionField.classList.toggle("hidden", isExternal);
   if (isExternal) {
     homeSessionInput.checked = false;
+    renderVisitCityOptions();
   } else {
     regionInput.value = "";
+    visitCityInput.innerHTML = '<option value="">اختر المدينة</option>';
   }
   selectedSlotId = "";
   slotSelect.value = "";
   renderBookingOptions();
+});
+
+regionInput.addEventListener("change", () => {
+  renderVisitCityOptions();
 });
 
 adminTabs.forEach((tab) => {
@@ -1397,6 +1505,22 @@ bookingForm.addEventListener("submit", async (event) => {
 
     const name = document.querySelector("#nameInput").value.trim();
     const locationType = locationTypeInput.value;
+    let selectedVisitCity = null;
+
+    if (locationType === "external") {
+      selectedVisitCity = getSelectedVisitCity();
+      if (!selectedVisitCity) {
+        showMessage(bookingMessage, "يرجى اختيار مدينة صحيحة.", "error");
+        return;
+      }
+
+      const agreed = await askVisitPriceAgreement(selectedVisitCity);
+      if (!agreed) {
+        showMessage(bookingMessage, "لم يتم إنشاء الحجز لعدم الموافقة على قيمة الزيارة.", "error");
+        return;
+      }
+    }
+
     const created = await api("rpc/create_appointment_booking", {
       method: "POST",
       body: {
@@ -1405,7 +1529,9 @@ bookingForm.addEventListener("submit", async (event) => {
         p_phone: phone,
         p_location_type: locationType,
         p_region: locationType === "external" ? regionInput.value : null,
-        p_home_session: homeSessionInput.checked
+        p_city: locationType === "external" ? visitCityInput.value : null,
+        p_home_session: homeSessionInput.checked,
+        p_price_accepted: locationType === "external"
       }
     });
 
@@ -1413,6 +1539,9 @@ bookingForm.addEventListener("submit", async (event) => {
     locationTypeInput.value = "internal";
     regionField.classList.add("hidden");
     regionInput.required = false;
+    visitCityField.classList.add("hidden");
+    visitCityInput.required = false;
+    visitCityInput.innerHTML = '<option value="">اختر المدينة</option>';
     homeSessionField.classList.remove("hidden");
     selectedSlotId = "";
     slotSelect.value = "";
@@ -1429,6 +1558,10 @@ bookingForm.addEventListener("submit", async (event) => {
         ? "هذا الموعد لم يعد متاحًا. اختر موعدًا آخر."
         : error.message.includes("EXTERNAL_DAY_BOOKED")
           ? "تم حجز هذا اليوم لموعد خارج منطقة حائل. اختر يومًا آخر."
+          : error.message.includes("PRICE_NOT_ACCEPTED")
+            ? "يجب الموافقة على قيمة الزيارة قبل تأكيد الحجز."
+            : error.message.includes("INVALID_VISIT_CITY")
+              ? "المدينة المختارة غير متاحة حاليًا."
         : `تعذر حفظ الحجز: ${error.message}`;
     showMessage(bookingMessage, errorMessage, "error");
   } finally {
@@ -1442,6 +1575,7 @@ async function boot() {
     restoreAuthSession();
     await loadPrayerTimes();
     await verifyAdminSession();
+    await loadVisitCities();
     await refreshAll();
     showMessage(bookingMessage, "", "");
   } catch (error) {

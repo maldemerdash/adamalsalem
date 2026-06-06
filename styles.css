@@ -917,6 +917,25 @@ tr:has(.appointment-cell) td {
   line-height: 1.8;
 }
 
+.price-agreement-dialog {
+  text-align: center;
+}
+
+.visit-price {
+  display: block;
+  margin: 14px 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: clamp(1.35rem, 4vw, 2rem);
+}
+
+.price-agreement-dialog .price-pledge {
+  color: var(--ink);
+  font-weight: 800;
+}
+
 .choice-actions {
   display: grid;
   gap: 8px;
