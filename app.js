@@ -568,6 +568,22 @@ function formatDateRange(start, end) {
   return `${formatCombinedDate(start)} إلى ${formatCombinedDate(end)}`;
 }
 
+function getDetailedPackageDays(start, end) {
+  if (!start) return [];
+  const startDate = new Date(`${start}T12:00:00`);
+  const endDate = new Date(`${end || start}T12:00:00`);
+  const days = [];
+  for (const date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+    const dateKey = toDateKey(date);
+    days.push({
+      day: new Intl.DateTimeFormat("ar-SA", { weekday: "long" }).format(date),
+      gregorian: formatGregorianDate(dateKey),
+      hijri: formatHijriDate(dateKey)
+    });
+  }
+  return days;
+}
+
 function formatTime(value) {
   return new Intl.DateTimeFormat("ar-SA", {
     hour: "numeric",
@@ -1432,16 +1448,37 @@ function appendCell(row, value) {
 function appendAppointmentCell(row, booking) {
   const cell = document.createElement("td");
   cell.className = "appointment-cell";
-  const values = isFullDayBookingType(booking.booking_type)
-    ? [
-        booking.appointment_title || (
-          booking.booking_type === "special_home"
-            ? "باقة زيارة منزلية خاصة داخل مدينة حائل"
-            : "باقة زيارة خارج مدينة حائل"
-        ),
-        formatDateRange(booking.booking_start_date, booking.booking_end_date)
-      ]
-    : isHomeBookingType(booking.booking_type) || booking.booking_type === "special_external_near"
+  if (isFullDayBookingType(booking.booking_type)) {
+    cell.classList.add("package-appointment-cell");
+    const title = document.createElement("strong");
+    title.className = "appointment-package-title";
+    title.textContent = booking.appointment_title || (
+      booking.booking_type === "special_home"
+        ? "باقة زيارة منزلية خاصة داخل مدينة حائل"
+        : "باقة زيارة خارج مدينة حائل"
+    );
+    const days = document.createElement("div");
+    days.className = "appointment-package-days";
+    getDetailedPackageDays(booking.booking_start_date, booking.booking_end_date).forEach((item, index) => {
+      const dayRow = document.createElement("div");
+      dayRow.className = "appointment-package-day";
+      const order = document.createElement("span");
+      order.className = "package-day-order";
+      order.textContent = `اليوم ${["الأول", "الثاني", "الثالث"][index] || index + 1}`;
+      const dayName = document.createElement("strong");
+      dayName.textContent = item.day;
+      const dates = document.createElement("span");
+      dates.className = "package-day-dates";
+      dates.textContent = `${item.gregorian} (${item.hijri})`;
+      dayRow.append(order, dayName, dates);
+      days.append(dayRow);
+    });
+    cell.append(title, days);
+    row.append(cell);
+    return cell;
+  }
+
+  const values = isHomeBookingType(booking.booking_type) || booking.booking_type === "special_external_near"
       ? [
           `${booking.slot.day} ${formatDate(booking.slot.date)}`,
           booking.appointment_title || booking.slot.title || "موعد زيارة",

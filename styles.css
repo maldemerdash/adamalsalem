@@ -1034,19 +1034,72 @@ button.package-card {
   white-space: normal;
 }
 
-.appointment-cell span {
+.appointment-cell > span {
   display: block;
   padding: 5px 8px;
 }
 
-.appointment-cell span:nth-child(1),
-.appointment-cell span:nth-child(3) {
+.appointment-cell > span:nth-child(1),
+.appointment-cell > span:nth-child(3) {
   background: var(--gray);
   border-radius: 5px;
 }
 
-.appointment-cell span:nth-child(2) {
+.appointment-cell > span:nth-child(2) {
   direction: ltr;
+}
+
+.package-appointment-cell {
+  min-width: 310px;
+  gap: 9px;
+}
+
+.appointment-package-title {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  line-height: 1.5;
+}
+
+.appointment-package-days {
+  display: grid;
+  gap: 6px;
+}
+
+.appointment-package-day {
+  display: grid;
+  grid-template-columns: 64px 58px minmax(150px, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.appointment-package-day span {
+  padding: 0;
+  background: transparent;
+}
+
+.package-day-order {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.appointment-package-day strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.appointment-package-day .package-day-dates {
+  direction: rtl;
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 tr:has(.appointment-cell) td {
