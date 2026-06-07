@@ -1,6 +1,6 @@
 const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
-const SCHEDULE_VERSION = "weekly-v11";
+const SCHEDULE_VERSION = "weekly-v12";
 const INTERNAL_START_HOUR = 17;
 const INTERNAL_LAST_SLOT_MINUTES = 21 * 60 + 30;
 const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
@@ -28,13 +28,11 @@ const MESSAGES = {
       const isPackage = isMultiDayBookingType(booking.booking_type, booking);
       return [
         boldName ? `مرحبًا ${boldName}` : "مرحبًا",
-        isPackage ? "تم تأكيد باقة الزيارة خارج مدينة حائل." : "تم تأكيد يوم الزيارة خارج مدينة حائل.",
+        "تم تأكيد باقة الزيارة خارج مدينة حائل.",
         `المنطقة: ${booking.region || booking.city}`,
         `المدينة: ${booking.visit_city || "-"}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`,
-        isPackage
-          ? `الباقة: ${formatDateRange(booking.booking_start_date, booking.booking_end_date)}`
-          : `اليوم والتاريخ: ${boldDay} ${formatCombinedDate(booking.slot.date)}`,
+        `الباقة: ${formatDateRange(booking.booking_start_date, booking.booking_end_date)}`,
         booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
         booking.alternate_phone ? `رقم التواصل عند الوصول: ${booking.alternate_phone}` : null
       ].filter(Boolean).join("\n");
@@ -441,38 +439,43 @@ function buildWeeklySlots(weekStart) {
     });
   });
 
+  const regularPackageStart = new Date(weekStart);
+  regularPackageStart.setDate(weekStart.getDate() + 4);
+  const regularPackageEnd = new Date(regularPackageStart);
+  regularPackageEnd.setDate(regularPackageStart.getDate() + 2);
+  const regularPackageStartKey = toDateKey(regularPackageStart);
+  generated.push({
+    id: `${SCHEDULE_VERSION}:external:${regularPackageStartKey}`,
+    day: "الخميس والجمعة والسبت",
+    date: regularPackageStartKey,
+    time: "00:00",
+    end_time: "23:59",
+    title: "باقة زيارة خارج مدينة حائل",
+    package_end_date: toDateKey(regularPackageEnd),
+    source: "external-package",
+    suspended: false,
+    slot_type: "external",
+    schedule_version: SCHEDULE_VERSION
+  });
+
   [...INTERNAL_WORK_DAYS, ...VISIT_WORK_DAYS].forEach((day) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + day.offset);
     const dateKey = toDateKey(date);
-
-    if (VISIT_WORK_DAYS.some((visitDay) => visitDay.offset === day.offset)) {
-      generated.push({
-        id: `${SCHEDULE_VERSION}:external:${dateKey}`,
-        day: day.name,
-        date: dateKey,
-        time: "00:00",
-        end_time: "23:59",
-        title: "زيارة خارج مدينة حائل - يوم كامل",
-        package_end_date: dateKey,
-        source: "external-day",
-        suspended: false,
-        slot_type: "external",
-        schedule_version: SCHEDULE_VERSION
-      });
-    }
+    const packageEnd = new Date(date);
+    packageEnd.setDate(date.getDate() + 2);
 
     generated.push({
-      id: `${SCHEDULE_VERSION}:special_external_day:${dateKey}`,
-      day: day.name,
+      id: `${SCHEDULE_VERSION}:special_external_package:${dateKey}`,
+      day: `${day.name} ويومان بعده`,
       date: dateKey,
       time: "00:00",
       end_time: "23:59",
-      title: "موعد خاص خارج مدينة حائل - يوم كامل",
-      package_end_date: dateKey,
-      source: "special-external-day",
+      title: "باقة موعد خاص خارج مدينة حائل",
+      package_end_date: toDateKey(packageEnd),
+      source: "special-external-package",
       suspended: false,
-      slot_type: "special_external_day",
+      slot_type: "special_external_package",
       schedule_version: SCHEDULE_VERSION
     });
   });
@@ -618,16 +621,11 @@ function getReceiptWhatsappUrl(booking) {
 }
 
 function getExternalBookingWhatsappUrl(result) {
-  const isPackage = isMultiDayBookingType(result.booking_type, result);
   const message = encodeURIComponent([
     `رقم الحجز: ${result.booking_number}`,
     result.name ? `الاسم: ${whatsappBold(result.name)}` : null,
-    isPackage
-      ? `تم اختيار باقة زيارة خارج مدينة حائل في ${result.visit_city} - ${result.region}`
-      : `تم اختيار يوم زيارة خارج مدينة حائل في ${result.visit_city} - ${result.region}`,
-    isPackage
-      ? `الباقة: ${formatDateRange(result.booking_start_date, result.booking_end_date)}`
-      : `اليوم والتاريخ: ${formatCombinedDate(result.booking_start_date)}`,
+    `تم اختيار باقة زيارة خارج مدينة حائل في ${result.visit_city} - ${result.region}`,
+    `الباقة: ${formatDateRange(result.booking_start_date, result.booking_end_date)}`,
     `قيمة الزيارة: ${whatsappBold(`${formatPrice(result.visit_price)} ريال`)}`,
     result.customer_location_url ? `موقع الزيارة: ${result.customer_location_url}` : null,
     result.alternate_phone ? `رقم التواصل عند الوصول: ${result.alternate_phone}` : null,
@@ -696,13 +694,19 @@ function getSelectedVisitCity() {
 
 function getCurrentBookingType() {
   if (locationTypeInput.value === "external") {
-    return specialAppointmentInput.checked ? "special_external_day" : "external";
+    return specialAppointmentInput.checked ? "special_external_package" : "external";
   }
   return homeSessionInput.checked ? "home" : "internal";
 }
 
 function isExternalBookingType(type) {
-  return ["external", "special_external_day", "special_external_near", "special_external_far"].includes(type);
+  return [
+    "external",
+    "special_external_package",
+    "special_external_day",
+    "special_external_near",
+    "special_external_far"
+  ].includes(type);
 }
 
 function isHomeBookingType(type) {
@@ -717,6 +721,13 @@ function isMultiDayBookingType(type, bookingOrSlot = null) {
   const start = bookingOrSlot?.booking_start_date || bookingOrSlot?.date;
   const end = bookingOrSlot?.booking_end_date || bookingOrSlot?.package_end_date;
   return isFullDayBookingType(type) && Boolean(start && end && start !== end);
+}
+
+function isThreeDayExternalPackage(slot) {
+  if (!isExternalBookingType(slot.slot_type) || !slot.date || !slot.package_end_date) return false;
+  const expectedEnd = new Date(`${slot.date}T12:00:00`);
+  expectedEnd.setDate(expectedEnd.getDate() + 2);
+  return slot.package_end_date === toDateKey(expectedEnd);
 }
 
 function getRecoveryWhatsappUrl(phone, bookingNumber) {
@@ -856,6 +867,7 @@ function getAvailableSlots() {
     .filter((slot) => !bookedIds.has(slot.id))
     .filter((slot) => !slot.suspended)
     .filter((slot) => slot.slot_type === selectedType)
+    .filter((slot) => !isExternalBookingType(slot.slot_type) || isThreeDayExternalPackage(slot))
     .filter((slot) => !getReservedSlots().some((booking) => bookingConflictsWithSlot(booking, slot)))
     .filter((slot) => {
       const date = new Date(`${slot.date}T00:00:00`);
@@ -883,6 +895,7 @@ function getAdminOpenSlots(slotType = null) {
     .filter((slot) => slot.schedule_version === SCHEDULE_VERSION)
     .filter((slot) => !bookedIds.has(slot.id))
     .filter((slot) => !slotType || slot.slot_type === slotType)
+    .filter((slot) => !isExternalBookingType(slot.slot_type) || isThreeDayExternalPackage(slot))
     .filter((slot) => !reserved.some((booking) => bookingConflictsWithSlot(booking, slot)))
     .filter((slot) => {
       const slotDate = new Date(`${slot.date}T00:00:00`);
@@ -1129,7 +1142,7 @@ function showBookingConfirmation(result) {
     const wrapper = document.createElement("div");
     wrapper.className = "external-message";
     const text = document.createElement("p");
-    text.textContent = `${isMultiDayBookingType(result.booking_type, result) ? "تم تسجيل طلب باقة الزيارة" : "تم تسجيل طلب يوم الزيارة"} في ${result.visit_city}. قيمة الزيارة: ${formatPrice(result.visit_price)} ريال.`;
+    text.textContent = `تم تسجيل طلب باقة الزيارة في ${result.visit_city}. قيمة الزيارة: ${formatPrice(result.visit_price)} ريال.`;
     const link = document.createElement("a");
     link.className = "whatsapp-button external-whatsapp";
     link.textContent = "إرسال طلب الموعد عبر واتساب";
@@ -1316,13 +1329,12 @@ function createPackageCard(slot, { selected = false, onSelect = null, admin = fa
 
   const badge = document.createElement("span");
   badge.className = "package-badge";
-  const isPackage = slot.package_end_date && slot.package_end_date !== slot.date;
-  badge.textContent = isPackage ? "باقة 3 أيام" : "حجز يوم كامل";
+  badge.textContent = "باقة 3 أيام";
   const title = document.createElement("strong");
   title.textContent = slot.title || "باقة زيارة خارج مدينة حائل";
   const days = document.createElement("span");
   days.className = "package-days";
-  const packageDays = Array.from({ length: isPackage ? 3 : 1 }, (_, offset) => {
+  const packageDays = Array.from({ length: 3 }, (_, offset) => {
     const date = new Date(`${slot.date}T12:00:00`);
     date.setDate(date.getDate() + offset);
     return new Intl.DateTimeFormat("ar-SA", { weekday: "long" }).format(date);
@@ -1330,7 +1342,7 @@ function createPackageCard(slot, { selected = false, onSelect = null, admin = fa
   days.textContent = packageDays.join("، ");
   const dates = document.createElement("span");
   dates.className = "package-dates";
-  dates.textContent = isPackage ? formatDateRange(slot.date, slot.package_end_date) : formatDate(slot.date);
+  dates.textContent = formatDateRange(slot.date, slot.package_end_date);
   card.append(badge, title, days, dates);
 
   if (onSelect) {
@@ -1557,7 +1569,7 @@ function renderAvailableSlots() {
   const home = [...homeRegular];
   const externalDays = [
     ...getAdminOpenSlots("external"),
-    ...getAdminOpenSlots("special_external_day")
+    ...getAdminOpenSlots("special_external_package")
   ].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
   const external = [...externalDays];
   const available = [...internal, ...home, ...external];
@@ -1574,7 +1586,7 @@ function renderAvailableSlots() {
   homeAvailableSlots.append(homeRegularSection);
   externalAvailableSlots.innerHTML = "";
   const daysTitle = document.createElement("h5");
-  daysTitle.textContent = "أيام الزيارات الخارجية - اليوم كامل";
+  daysTitle.textContent = "باقات الزيارات الخارجية - ثلاثة أيام";
   const daysContainer = document.createElement("div");
   renderAdminPackageGrid(daysContainer, externalDays);
   externalAvailableSlots.append(daysTitle, daysContainer);
@@ -2020,14 +2032,15 @@ recoveryPanel.addEventListener("click", (event) => {
 function updateSpecialAppointmentControls() {
   const isExternal = locationTypeInput.value === "external";
   const canBookSpecial = isExternal;
+  specialAppointmentField.hidden = !canBookSpecial;
   specialAppointmentField.classList.toggle("hidden", !canBookSpecial);
   if (!canBookSpecial) specialAppointmentInput.checked = false;
 
   const note = document.querySelector(".slots-note");
   if (specialAppointmentInput.checked && isExternal) {
-    note.textContent = "اختر يوم الموعد الخاص. يتم حجز اليوم بالكامل دون تحديد ساعة.";
+    note.textContent = "اختر بداية الموعد الخاص. يتم حجز اليوم المختار واليومين التاليين بالكامل.";
   } else if (isExternal) {
-    note.textContent = "اختر يوم الزيارة الخارجية من الخميس أو الجمعة أو السبت. يتم حجز اليوم بالكامل.";
+    note.textContent = "اختر باقة الخميس والجمعة والسبت. يتم حجز الأيام الثلاثة بالكامل.";
   } else if (homeSessionInput.checked) {
     note.textContent = "تظهر الزيارات المنزلية المتاحة أيام الخميس والجمعة والسبت.";
   } else {
@@ -2398,6 +2411,7 @@ bookingForm.addEventListener("submit", async (event) => {
     visitCityInput.required = false;
     visitCityInput.innerHTML = '<option value="">اختر المدينة</option>';
     homeSessionField.classList.remove("hidden");
+    specialAppointmentField.hidden = true;
     specialAppointmentField.classList.add("hidden");
     specialAppointmentInput.checked = false;
     customerLocationField.classList.add("hidden");

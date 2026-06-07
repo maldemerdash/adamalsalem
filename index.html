@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=weekly-v12-2" />
   </head>
   <body>
     <main class="page">
@@ -99,7 +99,7 @@
               </div>
               <div class="mini-schedule">
                 <span>الزيارات المنزلية والخارجية</span>
-                <strong>الخميس والجمعة والسبت، والزيارة الخارجية تحجز اليوم بالكامل</strong>
+                <strong>جميع الزيارات الخارجية باقات من ثلاثة أيام كاملة</strong>
               </div>
             </aside>
 
@@ -158,7 +158,7 @@
                     <span>حجز زيارة منزلية</span>
                   </label>
 
-                  <label id="specialAppointmentField" class="checkbox-field optional-field hidden">
+                  <label id="specialAppointmentField" class="checkbox-field optional-field hidden" hidden>
                     <input id="specialAppointmentInput" type="checkbox" />
                     <span>حجز موعد خاص</span>
                   </label>
@@ -239,7 +239,7 @@
             </div>
 
             <div class="auto-note">
-              المواعيد العامة: الأحد إلى الأربعاء من 5:00 مساءً إلى 9:30 مساءً. الزيارات المنزلية: الخميس والجمعة والسبت. الزيارة الخارجية تحجز اليوم بالكامل.
+              المواعيد العامة: الأحد إلى الأربعاء من 5:00 مساءً إلى 9:30 مساءً. الزيارات المنزلية: الخميس والجمعة والسبت. جميع الزيارات الخارجية باقات من ثلاثة أيام.
             </div>
 
             <div class="stats-grid">
@@ -290,7 +290,7 @@
                     <div id="homeAvailableSlots" class="grouped-slots"></div>
                   </div>
                   <div class="visit-admin-view" data-visit-admin-view="external">
-                    <h4>أيام الزيارات خارج حائل</h4>
+                    <h4>باقات الزيارات خارج حائل</h4>
                     <div id="externalAvailableSlots" class="grouped-slots"></div>
                   </div>
                 </section>
@@ -386,6 +386,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=weekly-v12-2"></script>
   </body>
 </html>
