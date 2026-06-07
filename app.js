@@ -1,6 +1,6 @@
 const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
-const SCHEDULE_VERSION = "weekly-v9";
+const SCHEDULE_VERSION = "weekly-v10";
 const INTERNAL_START_HOUR = 17;
 const INTERNAL_LAST_SLOT_MINUTES = 21 * 60 + 30;
 const SPECIAL_VISIT_TIMES = ["22:00", "22:30", "23:00"];
@@ -42,15 +42,18 @@ const MESSAGES = {
     }
 
     if (isHomeBookingType(booking.booking_type)) {
+      const isPackage = isFullDayBookingType(booking.booking_type);
       return [
         boldName ? `مرحبًا ${boldName}` : "مرحبًا",
         booking.booking_type === "special_home"
-          ? "تم تأكيد الموعد الخاص للزيارة المنزلية داخل مدينة حائل."
+          ? "تم تأكيد باقة الموعد الخاص للزيارة المنزلية داخل مدينة حائل."
           : "تم تأكيد الزيارة المنزلية داخل مدينة حائل.",
-        `الزيارة: ${whatsappBold(booking.appointment_title || booking.slot.title || "زيارة منزلية")}`,
-        `اليوم: ${boldDay}`,
-        `التاريخ: ${formatCombinedDate(booking.slot.date)}`,
-        `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)} إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`)}`,
+        isPackage
+          ? `الباقة: ${formatDateRange(booking.booking_start_date, booking.booking_end_date)}`
+          : `الزيارة: ${whatsappBold(booking.appointment_title || booking.slot.title || "زيارة منزلية")}`,
+        isPackage ? null : `اليوم: ${boldDay}`,
+        isPackage ? null : `التاريخ: ${formatCombinedDate(booking.slot.date)}`,
+        isPackage ? null : `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)} إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`)}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`
       ].filter(Boolean).join("\n");
     }
@@ -470,34 +473,36 @@ function buildWeeklySlots(weekStart) {
 
     SPECIAL_VISIT_TIMES.forEach((time) => {
       const endTime = minutesToTime(timeToMinutes(time) + 30);
-      [
-        {
-          type: "special_home",
-          title: "موعد خاص لزيارة منزلية داخل مدينة حائل"
-        },
-        {
-          type: "special_external_near",
-          title: "موعد خاص لزيارة خارج مدينة حائل"
-        }
-      ].forEach(({ type, title }) => {
-        generated.push({
-          id: `${SCHEDULE_VERSION}:${type}:${dateKey}T${time}`,
-          day: day.name,
-          date: dateKey,
-          time,
-          end_time: endTime,
-          title,
-          package_end_date: dateKey,
-          source: "special",
-          suspended: false,
-          slot_type: type,
-          schedule_version: SCHEDULE_VERSION
-        });
+      generated.push({
+        id: `${SCHEDULE_VERSION}:special_external_near:${dateKey}T${time}`,
+        day: day.name,
+        date: dateKey,
+        time,
+        end_time: endTime,
+        title: "موعد خاص لزيارة خارج مدينة حائل",
+        package_end_date: dateKey,
+        source: "special",
+        suspended: false,
+        slot_type: "special_external_near",
+        schedule_version: SCHEDULE_VERSION
       });
     });
 
     const packageEnd = new Date(date);
     packageEnd.setDate(date.getDate() + 2);
+    generated.push({
+      id: `${SCHEDULE_VERSION}:special_home:${dateKey}`,
+      day: `${day.name} ويومان بعده`,
+      date: dateKey,
+      time: "00:00",
+      end_time: "23:59",
+      title: "باقة موعد خاص لزيارة منزلية داخل مدينة حائل",
+      package_end_date: toDateKey(packageEnd),
+      source: "special-package",
+      suspended: false,
+      slot_type: "special_home",
+      schedule_version: SCHEDULE_VERSION
+    });
     generated.push({
       id: `${SCHEDULE_VERSION}:special_external_far:${dateKey}`,
       day: `${day.name} ويومان بعده`,
@@ -733,11 +738,11 @@ function isHomeBookingType(type) {
 }
 
 function isFullDayBookingType(type) {
-  return ["external", "special_external_far"].includes(type);
+  return ["external", "special_home", "special_external_far"].includes(type);
 }
 
 function isSpecialTimedBookingType(type) {
-  return ["special_home", "special_external_near"].includes(type);
+  return type === "special_external_near";
 }
 
 function getRecoveryWhatsappUrl(phone, bookingNumber) {
@@ -1428,7 +1433,14 @@ function appendAppointmentCell(row, booking) {
   const cell = document.createElement("td");
   cell.className = "appointment-cell";
   const values = isFullDayBookingType(booking.booking_type)
-    ? [booking.appointment_title || "باقة زيارة خارج مدينة حائل", formatDateRange(booking.booking_start_date, booking.booking_end_date)]
+    ? [
+        booking.appointment_title || (
+          booking.booking_type === "special_home"
+            ? "باقة زيارة منزلية خاصة داخل مدينة حائل"
+            : "باقة زيارة خارج مدينة حائل"
+        ),
+        formatDateRange(booking.booking_start_date, booking.booking_end_date)
+      ]
     : isHomeBookingType(booking.booking_type) || booking.booking_type === "special_external_near"
       ? [
           `${booking.slot.day} ${formatDate(booking.slot.date)}`,
@@ -1540,10 +1552,9 @@ function renderAdminPackageGrid(container, available) {
 
 function renderAvailableSlots() {
   const internal = getAdminOpenSlots("internal");
-  const home = [
-    ...getAdminOpenSlots("home"),
-    ...getAdminOpenSlots("special_home")
-  ].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  const homeRegular = getAdminOpenSlots("home");
+  const homePackages = getAdminOpenSlots("special_home");
+  const home = [...homeRegular, ...homePackages];
   const externalPackages = [
     ...getAdminOpenSlots("external"),
     ...getAdminOpenSlots("special_external_far")
@@ -1554,7 +1565,20 @@ function renderAvailableSlots() {
   availableCount.textContent = `${available.filter((slot) => !slot.suspended).length} موعد`;
   updateWeekButton();
   renderAdminSlotGroup(internalAvailableSlots, internal);
-  renderAdminSlotGroup(homeAvailableSlots, home);
+  homeAvailableSlots.innerHTML = "";
+  const homeRegularSection = document.createElement("section");
+  const homeRegularTitle = document.createElement("h5");
+  homeRegularTitle.textContent = "الزيارات المنزلية المجدولة";
+  const homeRegularContainer = document.createElement("div");
+  homeRegularSection.append(homeRegularTitle, homeRegularContainer);
+  renderAdminSlotGroup(homeRegularContainer, homeRegular);
+  const homePackageSection = document.createElement("section");
+  const homePackageTitle = document.createElement("h5");
+  homePackageTitle.textContent = "باقات المواعيد الخاصة - ثلاثة أيام";
+  const homePackageContainer = document.createElement("div");
+  homePackageSection.append(homePackageTitle, homePackageContainer);
+  renderAdminPackageGrid(homePackageContainer, homePackages);
+  homeAvailableSlots.append(homeRegularSection, homePackageSection);
   externalAvailableSlots.innerHTML = "";
   const packagesSection = document.createElement("section");
   const packagesTitle = document.createElement("h5");
@@ -1714,7 +1738,11 @@ function renderReceiptBooking(booking) {
   [
     booking.name || "غير مسجل",
     booking.booking_number,
-    isFullDayBookingType(booking.booking_type) ? "باقة خارج مدينة حائل" : booking.slot.day,
+    isFullDayBookingType(booking.booking_type)
+      ? booking.booking_type === "special_home"
+        ? "باقة زيارة منزلية خاصة"
+        : "باقة خارج مدينة حائل"
+      : booking.slot.day,
     isFullDayBookingType(booking.booking_type)
       ? formatDateRange(booking.booking_start_date, booking.booking_end_date)
       : formatDate(booking.slot.date),
@@ -2015,7 +2043,7 @@ function updateSpecialAppointmentControls() {
       ? "اختر بداية الموعد الخاص، وسيتم حجز هذا اليوم واليومين التاليين بالكامل."
       : "المواعيد الخاصة المتاحة يوميًا بعد الساعة 9:30 مساءً.";
   } else if (specialAppointmentInput.checked) {
-    note.textContent = "المواعيد الخاصة للزيارات المنزلية متاحة يوميًا بعد الساعة 9:30 مساءً.";
+    note.textContent = "اختر بداية باقة الزيارة المنزلية الخاصة، وسيتم حجز هذا اليوم واليومين التاليين بالكامل.";
   } else if (isExternal) {
     note.textContent = "اختر باقة الخميس والجمعة والسبت. تكتمل الباقة حتى لو امتدت إلى الشهر التالي.";
   } else if (homeSessionInput.checked) {
