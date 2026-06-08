@@ -1,5 +1,6 @@
 const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
+const PASSWORD_RECOVERY_REDIRECT_URL = "https://adamalsalem.vercel.app/";
 const SCHEDULE_VERSION = "weekly-v12";
 const INTERNAL_START_HOUR = 17;
 const INTERNAL_LAST_SLOT_MINUTES = 21 * 60 + 30;
@@ -183,6 +184,7 @@ const AUTH_STORAGE_KEY = "appointmentAdminSession";
 const ADMIN_LAST_ACTIVITY_KEY = "appointmentAdminLastActivity";
 const ADMIN_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 let adminIdleCheckTimer = null;
+let adminAutoLogoutInProgress = false;
 
 function getArabicAuthError(error, context = "login") {
   const message = String(error?.message || error || "").trim();
@@ -276,9 +278,8 @@ async function updateAuthUser(body) {
 }
 
 async function sendPasswordRecoveryEmail(email) {
-  const redirectUrl = `${window.location.origin}${window.location.pathname}`;
   const response = await fetch(
-    `${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectUrl)}`,
+    `${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(PASSWORD_RECOVERY_REDIRECT_URL)}`,
     {
       method: "POST",
       headers: {
@@ -307,6 +308,17 @@ function getRecoverySessionFromUrl() {
     token_type: params.get("token_type") || "bearer",
     user: null
   };
+}
+
+function getAuthCallbackErrorFromUrl() {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  if (!params.get("error")) return "";
+
+  const description = params.get("error_description") || "";
+  if (/expired|invalid/i.test(description)) {
+    return "رابط استعادة كلمة المرور غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا من شاشة الدخول.";
+  }
+  return description || "تعذر فتح رابط استعادة كلمة المرور. اطلب رابطًا جديدًا.";
 }
 
 function clearAuthCallbackFromUrl() {
@@ -370,8 +382,21 @@ async function verifyAdminSession(allowRefresh = true) {
   }
 }
 
-function markAdminActivity() {
+function handleAdminActivity() {
   if (!isAdmin || !adminPanel.classList.contains("active")) return;
+
+  if (getAdminIdleDuration() >= ADMIN_IDLE_TIMEOUT_MS) {
+    if (!adminAutoLogoutInProgress) {
+      adminAutoLogoutInProgress = true;
+      performLogout({ automatic: true })
+        .catch(console.error)
+        .finally(() => {
+          adminAutoLogoutInProgress = false;
+        });
+    }
+    return;
+  }
+
   localStorage.setItem(ADMIN_LAST_ACTIVITY_KEY, String(Date.now()));
 }
 
@@ -391,11 +416,16 @@ function stopAdminIdleTimer() {
 function startAdminIdleTimer() {
   stopAdminIdleTimer();
   if (!localStorage.getItem(ADMIN_LAST_ACTIVITY_KEY)) {
-    markAdminActivity();
+    localStorage.setItem(ADMIN_LAST_ACTIVITY_KEY, String(Date.now()));
   }
   adminIdleCheckTimer = setInterval(() => {
-    if (isAdmin && getAdminIdleDuration() >= ADMIN_IDLE_TIMEOUT_MS) {
-      performLogout({ automatic: true }).catch(console.error);
+    if (isAdmin && getAdminIdleDuration() >= ADMIN_IDLE_TIMEOUT_MS && !adminAutoLogoutInProgress) {
+      adminAutoLogoutInProgress = true;
+      performLogout({ automatic: true })
+        .catch(console.error)
+        .finally(() => {
+          adminAutoLogoutInProgress = false;
+        });
     }
   }, 15 * 1000);
 }
@@ -1031,6 +1061,8 @@ function getAvailableSlots() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const selectedType = getCurrentBookingType();
+  const specialPackageMinimumDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const specialPackageMinimumDateKey = toDateKey(specialPackageMinimumDate);
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
   let available = slots
@@ -1038,6 +1070,10 @@ function getAvailableSlots() {
     .filter((slot) => !bookedIds.has(slot.id))
     .filter((slot) => !slot.suspended)
     .filter((slot) => slot.slot_type === selectedType)
+    .filter((slot) => (
+      slot.slot_type !== "special_external_package"
+      || slot.date >= specialPackageMinimumDateKey
+    ))
     .filter((slot) => !isExternalBookingType(slot.slot_type) || isThreeDayExternalPackage(slot))
     .filter((slot) => !getReservedSlots().some((booking) => bookingConflictsWithSlot(booking, slot)))
     .filter((slot) => {
@@ -1370,7 +1406,7 @@ function showPanel(name) {
   if (isAdminPanel) {
     receiptPanel.classList.add("hidden");
     recoveryPanel.classList.add("hidden");
-    if (isAdmin) markAdminActivity();
+    if (isAdmin) handleAdminActivity();
   }
 }
 
@@ -2210,7 +2246,7 @@ function updateSpecialAppointmentControls() {
 
   const note = document.querySelector(".slots-note");
   if (specialAppointmentInput.checked && isExternal) {
-    note.textContent = "اختر بداية الموعد الخاص. يتم حجز اليوم المختار واليومين التاليين بالكامل.";
+    note.textContent = "تبدأ باقات الموعد الخاص بعد 24 ساعة على الأقل. يتم حجز اليوم المختار واليومين التاليين بالكامل.";
   } else if (isExternal) {
     note.textContent = "اختر باقة الخميس والجمعة والسبت. يتم حجز الأيام الثلاثة بالكامل.";
   } else if (homeSessionInput.checked) {
@@ -2735,6 +2771,7 @@ async function boot() {
   try {
     showMessage(bookingMessage, "جاري تحميل المواعيد...", "success");
     const recoverySession = getRecoverySessionFromUrl();
+    const authCallbackError = getAuthCallbackErrorFromUrl();
     if (recoverySession) {
       saveAuthSession(recoverySession);
       showPanel("admin");
@@ -2742,6 +2779,11 @@ async function boot() {
       setTimeout(() => recoveryAdminPassword.focus(), 0);
     } else {
       restoreAuthSession();
+      if (authCallbackError) {
+        showPanel("admin");
+        showMessage(loginMessage, authCallbackError, "error");
+        clearAuthCallbackFromUrl();
+      }
     }
     await loadPrayerTimes();
     await verifyAdminSession();
@@ -2766,8 +2808,14 @@ async function boot() {
 }
 
 ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => {
-  document.addEventListener(eventName, markAdminActivity, { passive: true });
+  document.addEventListener(eventName, handleAdminActivity, { passive: true });
 });
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") handleAdminActivity();
+});
+
+window.addEventListener("focus", handleAdminActivity);
 
 document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => {
