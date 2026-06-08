@@ -2500,9 +2500,24 @@ function renderTrackingBooking(booking) {
   headingNumber.textContent = booking.booking_number;
   heading.append(headingLabel, headingNumber);
 
+  if (booking.attended) {
+    const completedMessage = document.createElement("div");
+    completedMessage.className = "tracking-completed-message";
+    const completedIcon = document.createElement("span");
+    completedIcon.className = "tracking-completed-icon";
+    completedIcon.textContent = "✓";
+    const completedText = document.createElement("strong");
+    completedText.textContent = "تم حجز الموعد وتمت الجلسة بنجاح";
+    completedMessage.append(completedIcon, completedText);
+    card.append(heading, completedMessage);
+    trackingResult.append(card);
+    return;
+  }
+
   const progress = getTrackingStatusProgress(booking);
   const currentStatus = document.createElement("div");
   currentStatus.className = "tracking-current-status";
+  if (booking.confirmed) currentStatus.classList.add("confirmed");
   const currentStatusLabel = document.createElement("span");
   currentStatusLabel.textContent = "الحالة الحالية";
   const currentStatusText = document.createElement("strong");
