@@ -1,18 +1,22 @@
 :root {
-  --bg: #eef3f4;
+  --bg: #f1f5f5;
   --surface: #ffffff;
-  --surface-2: #f7f9fa;
-  --ink: #1f2933;
-  --muted: #66737f;
-  --line: #d7e0e4;
-  --primary: #0f766e;
-  --primary-dark: #115e59;
-  --primary-soft: #e1f2ef;
-  --gray: #e7ecef;
+  --surface-2: #f8fafb;
+  --ink: #26343b;
+  --muted: #65727a;
+  --line: #d4e0e3;
+  --primary: #2691a3;
+  --primary-dark: #176f7d;
+  --primary-soft: #e5f4f6;
+  --accent: #9b8300;
+  --accent-dark: #796600;
+  --accent-soft: #f7f1d7;
+  --gray: #e8edef;
   --danger: #b42318;
   --danger-soft: #fff1ef;
-  --success: #18794e;
-  --shadow: 0 18px 46px rgba(31, 41, 51, 0.1);
+  --success: #176b13;
+  --success-soft: #eaf6e8;
+  --shadow: 0 18px 46px rgba(25, 67, 74, 0.11);
   font-family: "Almarai", Tahoma, Arial, sans-serif;
 }
 
@@ -121,8 +125,8 @@ h3 {
   grid-column: 1 / -1;
   padding: 14px 16px;
   border-radius: 8px;
-  background: var(--primary-soft);
-  color: var(--primary-dark);
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .service-hours strong {
@@ -333,7 +337,7 @@ label span {
 .location-field {
   grid-column: 1 / -1;
   padding: 14px;
-  border: 1px solid #b9d8d4;
+  border: 1px solid #aed4da;
   border-radius: 8px;
   background: var(--primary-soft);
 }
@@ -381,7 +385,7 @@ select {
 input:focus,
 select:focus {
   border-color: var(--primary);
-  outline: 3px solid rgba(15, 118, 110, 0.16);
+  outline: 3px solid rgba(38, 145, 163, 0.16);
 }
 
 .primary-action,
@@ -402,7 +406,7 @@ select:focus {
 .primary-action {
   grid-column: 1 / -1;
   border: 0;
-  background: var(--primary);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -469,19 +473,19 @@ select:focus {
 }
 
 .confirm-button {
-  border: 1px solid rgba(15, 118, 110, 0.28);
-  background: var(--primary);
+  border: 1px solid rgba(155, 131, 0, 0.3);
+  background: var(--accent);
   color: #fff;
 }
 
 .whatsapp-button {
-  border: 1px solid rgba(24, 121, 78, 0.24);
-  background: #e7f7ef;
-  color: #18794e;
+  border: 1px solid rgba(23, 107, 19, 0.24);
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .attendance-button {
-  border: 1px solid rgba(15, 118, 110, 0.2);
+  border: 1px solid rgba(38, 145, 163, 0.2);
   background: var(--primary-soft);
   color: var(--primary-dark);
 }
@@ -595,10 +599,10 @@ select:focus {
 .booking-number {
   grid-column: 1 / -1;
   padding: 14px;
-  border: 2px solid rgba(15, 118, 110, 0.22);
+  border: 2px solid rgba(155, 131, 0, 0.3);
   border-radius: 8px;
-  background: var(--primary-soft);
-  color: var(--primary-dark);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
   font-size: clamp(1.45rem, 4vw, 2.4rem);
   font-weight: 800;
   text-align: center;
@@ -619,10 +623,10 @@ select:focus {
 .receipt-highlight-button {
   min-height: 50px;
   padding: 0 18px;
-  border: 2px solid #0b5f59;
+  border: 2px solid var(--accent-dark);
   border-radius: 7px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  box-shadow: 0 8px 20px rgba(15, 118, 110, 0.24);
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  box-shadow: 0 8px 20px rgba(155, 131, 0, 0.24);
   color: #fff;
   cursor: pointer;
   font-weight: 800;
@@ -631,7 +635,7 @@ select:focus {
 .receipt-highlight-button:hover,
 .receipt-highlight-button:focus-visible {
   filter: brightness(1.06);
-  outline: 3px solid rgba(15, 118, 110, 0.18);
+  outline: 3px solid rgba(155, 131, 0, 0.18);
 }
 
 .payment-text p {
@@ -758,10 +762,10 @@ select:focus {
 }
 
 .day-choice.active {
-  border-color: var(--primary);
-  background: var(--primary-soft);
-  color: var(--primary-dark);
-  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.12);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  box-shadow: inset 0 0 0 2px rgba(155, 131, 0, 0.14);
 }
 
 .visit-option-grid {
@@ -789,7 +793,7 @@ select:focus {
   width: 100%;
   min-height: 170px;
   padding: 16px;
-  border: 1px solid #b9d8d4;
+  border: 1px solid #aed4da;
   border-radius: 12px;
   background: linear-gradient(180deg, #fff 0%, var(--primary-soft) 100%);
   color: var(--ink);
@@ -802,8 +806,8 @@ button.package-card {
 }
 
 .package-card.selected {
-  border-color: var(--primary);
-  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.18);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px rgba(155, 131, 0, 0.2);
 }
 
 .package-card strong {
@@ -830,7 +834,7 @@ button.package-card {
 .package-dates {
   margin-top: auto;
   padding-top: 9px;
-  border-top: 1px solid rgba(15, 118, 110, 0.18);
+  border-top: 1px solid rgba(38, 145, 163, 0.18);
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.7;
@@ -1171,7 +1175,7 @@ button.package-card {
 .bookable-time.selected {
   border-color: var(--primary);
   background: var(--primary-soft);
-  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.14);
+  box-shadow: inset 0 0 0 2px rgba(38, 145, 163, 0.14);
 }
 
 .appointment-cell {
@@ -1338,7 +1342,7 @@ button.package-card {
   justify-content: center;
   min-height: 38px;
   padding: 7px 10px;
-  border: 1px solid rgba(15, 118, 110, 0.24);
+  border: 1px solid rgba(38, 145, 163, 0.24);
   border-radius: 6px;
   background: var(--primary);
   color: #fff;
@@ -1508,9 +1512,9 @@ tr:has(.appointment-cell) td {
   width: max-content;
   max-width: min(560px, calc(100% - 24px));
   padding: 14px 18px;
-  border: 1px solid rgba(24, 121, 78, 0.2);
+  border: 1px solid rgba(23, 107, 19, 0.2);
   border-radius: 8px;
-  background: #e7f7ef;
+  background: var(--success-soft);
   color: var(--success);
   box-shadow: var(--shadow);
   font-weight: 800;
