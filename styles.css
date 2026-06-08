@@ -262,18 +262,6 @@ label span {
   color: var(--danger);
 }
 
-.appointment-location-help {
-  margin: -2px 0 10px;
-  color: var(--danger);
-  font-size: 0.88rem;
-  font-weight: 800;
-  line-height: 1.75;
-}
-
-.appointment-location-help p {
-  margin: 0;
-}
-
 .single-column-form {
   grid-template-columns: 1fr;
 }
@@ -1068,6 +1056,32 @@ button.package-card {
   font-weight: 800;
   line-height: 1.6;
   white-space: nowrap;
+}
+
+.booking-context-note {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(180, 35, 24, 0.35);
+  border-radius: 6px;
+  background: var(--danger-soft);
+  overflow: hidden;
+}
+
+.booking-context-note p {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.6;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#homeSessionHelp {
+  grid-column: 1 / -1;
+  margin-top: -4px;
 }
 
 .day-group-title span,

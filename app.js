@@ -100,6 +100,8 @@ const visitCityField = document.querySelector("#visitCityField");
 const visitCityInput = document.querySelector("#visitCityInput");
 const homeSessionField = document.querySelector("#homeSessionField");
 const homeSessionInput = document.querySelector("#homeSessionInput");
+const appointmentLocationHelp = document.querySelector("#appointmentLocationHelp");
+const homeSessionHelp = document.querySelector("#homeSessionHelp");
 const specialAppointmentField = document.querySelector("#specialAppointmentField");
 const specialAppointmentInput = document.querySelector("#specialAppointmentInput");
 const userDayChoices = document.querySelector("#userDayChoices");
@@ -2238,10 +2240,19 @@ recoveryPanel.addEventListener("click", (event) => {
 
 function updateSpecialAppointmentControls() {
   const isExternal = locationTypeInput.value === "external";
+  const isHomeVisit = !isExternal && homeSessionInput.checked;
   const canBookSpecial = isExternal;
   specialAppointmentField.hidden = !canBookSpecial;
   specialAppointmentField.classList.toggle("hidden", !canBookSpecial);
   if (!canBookSpecial) specialAppointmentInput.checked = false;
+
+  appointmentLocationHelp.classList.toggle("hidden", isHomeVisit);
+  homeSessionHelp.classList.toggle("hidden", !isHomeVisit);
+  if (!isHomeVisit) {
+    appointmentLocationHelp.querySelector("p").textContent = isExternal
+      ? "يقصد بخارج مدينة حائل: حضور الراقي لمنزل طالب الموعد."
+      : "يقصد بالمواعيد داخل مدينة حائل: حضور طالب الموعد إلى مجلس الرقية عند الراقي.";
+  }
 
   const note = document.querySelector(".slots-note");
   if (specialAppointmentInput.checked && isExternal) {
@@ -2735,6 +2746,7 @@ bookingForm.addEventListener("submit", async (event) => {
     customerLngInput.value = "";
     locationStatus.textContent = "";
     document.querySelector(".slots-note").textContent = "يتم إتاحة المواعيد العامة للأيام الأربعة القادمة فقط.";
+    updateSpecialAppointmentControls();
     selectedSlotId = "";
     selectedBookingDate = "";
     slotSelect.value = "";

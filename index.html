@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=weekly-v12-9" />
+    <link rel="stylesheet" href="styles.css?v=weekly-v12-10" />
   </head>
   <body>
     <main class="page">
@@ -124,15 +124,13 @@
                 <div class="form-section-grid">
                   <label class="appointment-location-field">
                     <span>مكان الموعد</span>
-                    <div class="appointment-location-help">
-                      <p>يقصد بالمواعيد داخل مدينة حائل: حضور طالب الموعد إلى مجلس الرقية عند الراقي.</p>
-                      <p>يقصد بخارج مدينة حائل: حضور الراقي لمنزل طالب الموعد.</p>
-                      <p>يقصد بحجز زيارة منزلية: حضور الراقي إلى منزل طالب الموعد داخل مدينة حائل.</p>
-                    </div>
                     <select id="locationTypeInput" required>
                       <option value="internal" selected>داخل مدينة حائل</option>
                       <option value="external">خارج مدينة حائل</option>
                     </select>
+                    <div id="appointmentLocationHelp" class="booking-context-note">
+                      <p>يقصد بالمواعيد داخل مدينة حائل: حضور طالب الموعد إلى مجلس الرقية عند الراقي.</p>
+                    </div>
                   </label>
 
                   <label id="regionField" class="hidden">
@@ -162,6 +160,9 @@
                     <input id="homeSessionInput" type="checkbox" />
                     <span>حجز زيارة منزلية</span>
                   </label>
+                  <div id="homeSessionHelp" class="booking-context-note hidden">
+                    <p>يقصد بحجز زيارة منزلية: حضور الراقي إلى منزل طالب الموعد داخل مدينة حائل.</p>
+                  </div>
 
                   <label id="specialAppointmentField" class="checkbox-field optional-field hidden" hidden>
                     <input id="specialAppointmentInput" type="checkbox" />
@@ -478,6 +479,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="app.js?v=weekly-v12-9"></script>
+    <script src="app.js?v=weekly-v12-10"></script>
   </body>
 </html>
