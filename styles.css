@@ -695,7 +695,7 @@ select:focus {
 .booking-support-actions {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1539,6 +1539,98 @@ tr:has(.appointment-cell) td {
   margin-top: 12px;
 }
 
+.tracking-result {
+  margin-top: 14px;
+}
+
+.tracking-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tracking-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 7px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.tracking-heading span,
+.tracking-detail span,
+.tracking-package > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.tracking-heading strong {
+  color: var(--primary-dark);
+  font-size: 1.35rem;
+}
+
+.tracking-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.tracking-detail,
+.tracking-package {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.tracking-package {
+  grid-column: 1 / -1;
+}
+
+.tracking-detail strong,
+.tracking-package-days strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.tracking-package-days {
+  display: grid;
+  gap: 6px;
+}
+
+.tracking-package-days strong {
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--gray);
+}
+
+.tracking-status-section {
+  display: grid;
+  gap: 8px;
+}
+
+.tracking-status-section h3 {
+  margin: 0;
+  color: var(--primary-dark);
+}
+
+.tracking-status-card {
+  min-width: 0;
+}
+
+.tracking-location-link {
+  width: 100%;
+}
+
 .receipt-card {
   display: grid;
   gap: 12px;
@@ -1771,6 +1863,10 @@ tr:has(.appointment-cell) td {
   .template-form,
   .booking-support-actions,
   .map-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .tracking-details {
     grid-template-columns: 1fr;
   }
 

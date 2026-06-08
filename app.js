@@ -63,7 +63,7 @@ const MESSAGES = {
       booking.home_session ? "نوع الموعد: زيارة منزلية" : null,
       `الموقع: ${MAP_URL}`,
       getFemaleWhatsappNotice(booking.gender),
-      `${whatsappBold("تنبيه")}: لابد من الحضور قبل الموعد بـ${whatsappBold("خمس دقائق")} وفي حال التأخر بعد الموعد بـ${whatsappBold("خمس دقائق")} يتم إلغاء الموعد دون استرجاع المبلغ شاكرين لكم تعاونكم.`
+      `${whatsappBold("تنبيه")}: لابد من الحضور قبل الموعد بـ ${whatsappBold("خمس دقائق")} وفي حال التأخر بعد الموعد بـ ${whatsappBold("خمس دقائق")} يتم إلغاء الموعد دون استرجاع المبلغ شاكرين لكم تعاونكم.`
     ].filter(Boolean).join("\n");
   }
 };
@@ -137,6 +137,12 @@ const recoveryPanel = document.querySelector("#recoveryPanel");
 const closeRecoveryButton = document.querySelector("#closeRecoveryButton");
 const recoveryForm = document.querySelector("#recoveryForm");
 const recoveryMessage = document.querySelector("#recoveryMessage");
+const trackingButton = document.querySelector("#trackingButton");
+const trackingPanel = document.querySelector("#trackingPanel");
+const closeTrackingButton = document.querySelector("#closeTrackingButton");
+const trackingForm = document.querySelector("#trackingForm");
+const trackingResult = document.querySelector("#trackingResult");
+const trackingMessage = document.querySelector("#trackingMessage");
 const adminLoginView = document.querySelector("#adminLoginView");
 const adminDashboard = document.querySelector("#adminDashboard");
 const adminLoginButton = document.querySelector("#adminLoginButton");
@@ -1582,10 +1588,12 @@ function showPanel(name) {
   adminPanel.classList.toggle("active", isAdminPanel);
   receiptButton.classList.toggle("hidden", isAdminPanel);
   recoveryButton.classList.toggle("hidden", isAdminPanel);
+  trackingButton.classList.toggle("hidden", isAdminPanel);
   if (isAdminPanel) {
     clearBookingConfirmation();
     receiptPanel.classList.add("hidden");
     recoveryPanel.classList.add("hidden");
+    trackingPanel.classList.add("hidden");
     if (isAdmin) handleAdminActivity();
   }
 }
@@ -2404,6 +2412,182 @@ async function recoverBookingNumber(phone) {
   return rows?.[0] || null;
 }
 
+function getTrackingStatusProgress(booking) {
+  const isExternal = isExternalBookingType(booking.booking_type);
+  const expiresAt = booking.expires_at ? new Date(booking.expires_at) : null;
+
+  if (isExternal) {
+    const currentStage = booking.attended
+      ? 4
+      : booking.confirmed
+        ? 3
+        : booking.receipt_sent
+          ? 2
+          : booking.manager_approved
+            ? 1
+            : 0;
+    return {
+      currentStage,
+      labels: [
+        "بانتظار مراجعة المدير",
+        "تمت الموافقة على الموعد - بانتظار التحويل وإرفاق الإيصال",
+        "تم إرفاق الإيصال - بانتظار تأكيد المدير",
+        "تم تأكيد الموعد واستلام المبلغ",
+        "تم الحضور وإتمام الجلسة"
+      ],
+      completed: [
+        Boolean(booking.manager_approved || booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.confirmed || booking.attended),
+        Boolean(booking.attended)
+      ]
+    };
+  }
+
+  const currentStage = booking.attended
+    ? 3
+    : booking.confirmed
+      ? 2
+      : booking.receipt_sent
+        ? 1
+        : 0;
+  return {
+    currentStage,
+    labels: [
+      expiresAt ? `بانتظار التحويل حتى ${formatTimeFromDate(expiresAt)}` : "بانتظار التحويل",
+      "تم إرفاق الإيصال - بانتظار تأكيد المدير",
+      "تم تأكيد الموعد",
+      "تم الحضور وإتمام الجلسة"
+    ],
+    completed: [
+      Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+      Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+      Boolean(booking.confirmed || booking.attended),
+      Boolean(booking.attended)
+    ]
+  };
+}
+
+function getTrackingBookingType(booking) {
+  if (isExternalBookingType(booking.booking_type)) return "زيارة خارج مدينة حائل";
+  if (isHomeBookingType(booking.booking_type)) return "زيارة منزلية داخل مدينة حائل";
+  return "موعد عام داخل مدينة حائل";
+}
+
+function appendTrackingDetail(container, label, value) {
+  const item = document.createElement("div");
+  item.className = "tracking-detail";
+  const title = document.createElement("span");
+  title.textContent = label;
+  const text = document.createElement("strong");
+  text.textContent = value || "-";
+  item.append(title, text);
+  container.append(item);
+}
+
+function renderTrackingBooking(booking) {
+  trackingResult.innerHTML = "";
+
+  const card = document.createElement("div");
+  card.className = "tracking-card";
+
+  const heading = document.createElement("div");
+  heading.className = "tracking-heading";
+  const headingLabel = document.createElement("span");
+  headingLabel.textContent = "رقم الحجز";
+  const headingNumber = document.createElement("strong");
+  headingNumber.textContent = booking.booking_number;
+  heading.append(headingLabel, headingNumber);
+
+  const details = document.createElement("div");
+  details.className = "tracking-details";
+  appendTrackingDetail(details, "نوع الحجز", getTrackingBookingType(booking));
+
+  const startDate = booking.booking_start_date || booking.slot_date;
+  const endDate = booking.booking_end_date || startDate;
+  const packageDays = getDetailedPackageDays(startDate, endDate);
+  if (packageDays.length > 1) {
+    const packageBlock = document.createElement("div");
+    packageBlock.className = "tracking-package";
+    const packageTitle = document.createElement("span");
+    packageTitle.textContent = "أيام الباقة";
+    const dayList = document.createElement("div");
+    dayList.className = "tracking-package-days";
+    packageDays.forEach((day) => {
+      const dayItem = document.createElement("strong");
+      dayItem.textContent = `${day.day} ${day.gregorian} (${day.hijri})`;
+      dayList.append(dayItem);
+    });
+    packageBlock.append(packageTitle, dayList);
+    details.append(packageBlock);
+  } else {
+    appendTrackingDetail(
+      details,
+      "اليوم والتاريخ",
+      startDate
+        ? `${booking.slot_day || packageDays[0]?.day || ""} ${formatCombinedDate(startDate)}`.trim()
+        : "-"
+    );
+  }
+
+  if (!isFullDayBookingType(booking.booking_type) && booking.appointment_start_time) {
+    const endTime = booking.appointment_end_time
+      ? ` إلى ${formatTime(booking.appointment_end_time)}`
+      : "";
+    appendTrackingDetail(details, "الوقت", `${formatTime(booking.appointment_start_time)}${endTime}`);
+  }
+
+  appendTrackingDetail(
+    details,
+    "المدينة",
+    booking.visit_city || booking.region || "مدينة حائل"
+  );
+
+  const statusSection = document.createElement("section");
+  statusSection.className = "tracking-status-section";
+  const statusTitle = document.createElement("h3");
+  statusTitle.textContent = "حالة الحجز";
+  const statusCard = document.createElement("div");
+  statusCard.className = "booking-status-card tracking-status-card";
+  const progress = getTrackingStatusProgress(booking);
+  progress.labels.forEach((label, index) => {
+    const stage = document.createElement("div");
+    stage.className = "booking-status-stage";
+    if (progress.completed[index]) stage.classList.add("completed");
+    if (index === progress.currentStage) stage.classList.add("current");
+    if (index > progress.currentStage) stage.classList.add("upcoming");
+
+    const marker = document.createElement("span");
+    marker.className = "booking-status-marker";
+    marker.textContent = progress.completed[index] ? "✓" : index === progress.currentStage ? "•" : String(index + 1);
+    const text = document.createElement("span");
+    text.className = "booking-status-label";
+    text.textContent = label;
+    stage.append(marker, text);
+    statusCard.append(stage);
+  });
+  statusSection.append(statusTitle, statusCard);
+
+  const mapLink = document.createElement("a");
+  mapLink.className = "booking-location-link tracking-location-link";
+  mapLink.href = MAP_URL;
+  mapLink.target = "_blank";
+  mapLink.rel = "noopener noreferrer";
+  mapLink.textContent = "فتح موقع مجلس الرقية";
+
+  card.append(heading, details, statusSection, mapLink);
+  trackingResult.append(card);
+}
+
+async function trackBooking(bookingNumber) {
+  const rows = await api("rpc/track_appointment_booking", {
+    method: "POST",
+    body: { p_booking_number: bookingNumber }
+  });
+  return rows?.[0] || null;
+}
+
 async function refreshAll() {
   await loadPublicConfig();
   await loadData();
@@ -2647,12 +2831,20 @@ recoveryButton.addEventListener("click", () => {
   recoveryPanel.classList.remove("hidden");
 });
 
+trackingButton.addEventListener("click", () => {
+  trackingPanel.classList.remove("hidden");
+});
+
 closeReceiptButton.addEventListener("click", () => {
   receiptPanel.classList.add("hidden");
 });
 
 closeRecoveryButton.addEventListener("click", () => {
   recoveryPanel.classList.add("hidden");
+});
+
+closeTrackingButton.addEventListener("click", () => {
+  trackingPanel.classList.add("hidden");
 });
 
 useCurrentLocationButton.addEventListener("click", () => {
@@ -2972,6 +3164,33 @@ recoveryForm.addEventListener("submit", async (event) => {
     showMessage(recoveryMessage, `تعذر استرجاع رقم الحجز: ${error.message}`, "error");
   } finally {
     setBusy(recoveryForm, false);
+  }
+});
+
+trackingForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setBusy(trackingForm, true);
+  trackingResult.innerHTML = "";
+  showMessage(trackingMessage, "", "");
+
+  try {
+    const bookingNumber = document.querySelector("#trackingNumberInput").value.trim();
+    if (!/^\d{4,}$/.test(bookingNumber)) {
+      showMessage(trackingMessage, "أدخل رقم حجز صحيحًا.", "error");
+      return;
+    }
+
+    const booking = await trackBooking(bookingNumber);
+    if (!booking) {
+      showMessage(trackingMessage, "لم يتم العثور على حجز بهذا الرقم.", "error");
+      return;
+    }
+
+    renderTrackingBooking(booking);
+  } catch (error) {
+    showMessage(trackingMessage, `تعذر متابعة الحجز: ${error.message}`, "error");
+  } finally {
+    setBusy(trackingForm, false);
   }
 });
 

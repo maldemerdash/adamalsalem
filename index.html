@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=weekly-v12-29" />
+    <link rel="stylesheet" href="styles.css?v=weekly-v12-31" />
   </head>
   <body>
     <main class="page">
@@ -82,6 +82,31 @@
               <button class="secondary-action" type="submit">استرجاع عبر واتساب</button>
             </form>
             <div id="recoveryMessage" class="message" role="status" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section id="trackingPanel" class="receipt-panel hidden" aria-label="متابعة الحجز">
+          <div class="receipt-dialog compact-dialog">
+            <div class="list-head">
+              <div>
+                <h2>متابعة الحجز</h2>
+                <p>أدخل رقم الحجز للاطلاع على بيانات الموعد وحالته الحالية.</p>
+              </div>
+              <button id="closeTrackingButton" class="outline-action icon-action" type="button" title="إغلاق" aria-label="إغلاق">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m18.3 5.71-1.41-1.41L12 9.17 7.11 4.29 5.7 5.7 10.59 10.6 5.7 15.49l1.41 1.41L12 12.01l4.89 4.89 1.41-1.41-4.89-4.89 4.89-4.89Z" />
+                </svg>
+              </button>
+            </div>
+            <form id="trackingForm" class="form-grid single-column-form">
+              <label>
+                <span>رقم الحجز</span>
+                <input id="trackingNumberInput" type="text" inputmode="numeric" required placeholder="أدخل رقم الحجز" />
+              </label>
+              <button class="secondary-action" type="submit">استعلام</button>
+            </form>
+            <div id="trackingResult" class="tracking-result"></div>
+            <div id="trackingMessage" class="message" role="status" aria-live="polite"></div>
           </div>
         </section>
 
@@ -209,6 +234,7 @@
               <div class="booking-support-actions">
                 <button id="receiptButton" class="receipt-highlight-button" type="button">إرفاق إيصال التحويل</button>
                 <button id="recoveryButton" class="outline-action" type="button">استرجاع رقم الحجز</button>
+                <button id="trackingButton" class="outline-action" type="button">متابعة الحجز</button>
               </div>
               <div id="bookingNumberDisplay" class="booking-number hidden"></div>
               <div id="bookingMessage" class="message" role="status" aria-live="polite"></div>
@@ -492,6 +518,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="app.js?v=weekly-v12-30"></script>
+    <script src="app.js?v=weekly-v12-31"></script>
   </body>
 </html>
