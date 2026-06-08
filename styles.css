@@ -703,6 +703,33 @@ select:focus {
   width: 100%;
 }
 
+.booking-confirm-button,
+#receiptButton {
+  border-color: var(--success);
+  background: var(--success);
+  box-shadow: 0 8px 20px rgba(23, 107, 19, 0.2);
+  color: #fff;
+}
+
+#receiptButton:hover,
+#receiptButton:focus-visible,
+.booking-confirm-button:hover,
+.booking-confirm-button:focus-visible {
+  outline: 3px solid rgba(23, 107, 19, 0.16);
+}
+
+#recoveryButton {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+#trackingButton {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+  color: #fff;
+}
+
 .external-message {
   display: grid;
   gap: 12px;
