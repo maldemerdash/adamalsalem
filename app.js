@@ -37,7 +37,8 @@ const MESSAGES = {
         "أيام الباقة:",
         formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date),
         booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
-        booking.alternate_phone ? `رقم التواصل عند الوصول: ${booking.alternate_phone}` : null
+        booking.alternate_phone ? `رقم التواصل عند الوصول: ${booking.alternate_phone}` : null,
+        getFemaleWhatsappNotice(booking.gender)
       ].filter(Boolean).join("\n");
     }
 
@@ -49,7 +50,8 @@ const MESSAGES = {
         `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
         `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)} إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`)}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`,
-        booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null
+        booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
+        getFemaleWhatsappNotice(booking.gender)
       ].filter(Boolean).join("\n");
     }
 
@@ -60,6 +62,7 @@ const MESSAGES = {
       `الساعة: ${boldTime}`,
       booking.home_session ? "نوع الموعد: زيارة منزلية" : null,
       `الموقع: ${MAP_URL}`,
+      getFemaleWhatsappNotice(booking.gender),
       `${whatsappBold("تنبيه")}: لابد من الحضور قبل الموعد بـ${whatsappBold("خمس دقائق")} وفي حال التأخر بعد الموعد بـ${whatsappBold("خمس دقائق")} يتم إلغاء الموعد دون استرجاع المبلغ شاكرين لكم تعاونكم.`
     ].filter(Boolean).join("\n");
   }
@@ -94,6 +97,8 @@ const adminPanel = document.querySelector("#adminPanel");
 const bookingForm = document.querySelector("#bookingForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
 const slotSelect = document.querySelector("#slotSelect");
+const genderInput = document.querySelector("#genderInput");
+const femaleBookingNotice = document.querySelector("#femaleBookingNotice");
 const locationTypeInput = document.querySelector("#locationTypeInput");
 const regionField = document.querySelector("#regionField");
 const regionInput = document.querySelector("#regionInput");
@@ -791,6 +796,12 @@ function whatsappBold(value) {
   return `*${String(value || "").replace(/\*/g, "").trim()}*`;
 }
 
+function getFemaleWhatsappNotice(gender) {
+  return gender === "female"
+    ? whatsappBold("يجب التقيد بضوابط الرقية الشرعية وحضور المحرم مع النساء.")
+    : null;
+}
+
 function toWhatsappPhone(value) {
   const digits = normalizePhone(value).replace(/^\+/, "");
 
@@ -839,6 +850,7 @@ function getExternalApprovalWhatsappUrl(booking) {
     formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date),
     booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
     booking.alternate_phone ? `رقم التواصل عند الوصول: ${booking.alternate_phone}` : null,
+    getFemaleWhatsappNotice(booking.gender),
     `يرجى تحويل مبلغ ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)} على رقم الحساب التالي:`,
     whatsappBold(BANK_ACCOUNT_NUMBER),
     "بعد التحويل، أرسل الإيصال عبر واتساب ثم اضغط في الموقع على زر إرفاق إيصال التحويل."
@@ -2743,6 +2755,10 @@ locationTypeInput.addEventListener("change", () => {
   renderBookingOptions();
 });
 
+genderInput.addEventListener("change", () => {
+  femaleBookingNotice.classList.toggle("hidden", genderInput.value !== "female");
+});
+
 homeSessionInput.addEventListener("change", () => {
   selectedSlotId = "";
   selectedBookingDate = "";
@@ -3135,6 +3151,11 @@ bookingForm.addEventListener("submit", async (event) => {
     }
 
     const name = document.querySelector("#nameInput").value.trim();
+    const gender = genderInput.value;
+    if (!["male", "female"].includes(gender)) {
+      showMessage(bookingMessage, "يرجى اختيار النوع: ذكر أو أنثى.", "error");
+      return;
+    }
     const locationType = locationTypeInput.value;
     const needsCustomerLocation = locationType === "external" || homeSessionInput.checked;
     let selectedVisitCity = null;
@@ -3186,6 +3207,7 @@ bookingForm.addEventListener("submit", async (event) => {
         p_slot_id: selectedSlotForSubmit,
         p_name: name,
         p_phone: phone,
+        p_gender: gender,
         p_location_type: locationType,
         p_region: locationType === "external" ? regionInput.value : null,
         p_city: locationType === "external" ? visitCityInput.value : null,
@@ -3198,6 +3220,7 @@ bookingForm.addEventListener("submit", async (event) => {
     });
 
     bookingForm.reset();
+    femaleBookingNotice.classList.add("hidden");
     locationTypeInput.value = "internal";
     regionField.classList.add("hidden");
     regionInput.required = false;
@@ -3219,7 +3242,7 @@ bookingForm.addEventListener("submit", async (event) => {
     selectedSlotId = "";
     selectedBookingDate = "";
     slotSelect.value = "";
-    const bookingResult = { ...(created?.[0] || {}), name };
+    const bookingResult = { ...(created?.[0] || {}), name, gender };
     const bookingNumber = bookingResult.booking_number || "";
     renderBookingNumber(bookingNumber);
     showBookingConfirmation(bookingResult);
@@ -3239,6 +3262,8 @@ bookingForm.addEventListener("submit", async (event) => {
                 ? "يجب تحديد موقع الزيارة قبل تأكيد الحجز."
                 : error.message.includes("INVALID_ALTERNATE_PHONE")
                   ? "رقم التواصل الإضافي غير صحيح."
+                  : error.message.includes("INVALID_GENDER")
+                    ? "يرجى اختيار النوع: ذكر أو أنثى."
         : `تعذر حفظ الحجز: ${error.message}`;
     showMessage(bookingMessage, errorMessage, "error");
   } finally {

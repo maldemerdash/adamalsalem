@@ -1145,6 +1145,11 @@ button.package-card {
   overflow-wrap: anywhere;
 }
 
+.gender-notice {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
 #homeSessionHelp {
   grid-column: 1 / -1;
   margin-top: -4px;
