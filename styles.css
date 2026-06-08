@@ -1575,6 +1575,26 @@ tr:has(.appointment-cell) td {
   font-size: 1.35rem;
 }
 
+.tracking-current-status {
+  display: grid;
+  gap: 6px;
+  padding: 13px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.tracking-current-status span {
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.tracking-current-status strong {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
 .tracking-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1629,6 +1649,17 @@ tr:has(.appointment-cell) td {
 
 .tracking-location-link {
   width: 100%;
+}
+
+.tracking-location-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--gray);
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
 }
 
 .receipt-card {

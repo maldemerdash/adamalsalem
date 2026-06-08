@@ -2500,6 +2500,15 @@ function renderTrackingBooking(booking) {
   headingNumber.textContent = booking.booking_number;
   heading.append(headingLabel, headingNumber);
 
+  const progress = getTrackingStatusProgress(booking);
+  const currentStatus = document.createElement("div");
+  currentStatus.className = "tracking-current-status";
+  const currentStatusLabel = document.createElement("span");
+  currentStatusLabel.textContent = "الحالة الحالية";
+  const currentStatusText = document.createElement("strong");
+  currentStatusText.textContent = progress.labels[progress.currentStage];
+  currentStatus.append(currentStatusLabel, currentStatusText);
+
   const details = document.createElement("div");
   details.className = "tracking-details";
   appendTrackingDetail(details, "نوع الحجز", getTrackingBookingType(booking));
@@ -2550,7 +2559,6 @@ function renderTrackingBooking(booking) {
   statusTitle.textContent = "حالة الحجز";
   const statusCard = document.createElement("div");
   statusCard.className = "booking-status-card tracking-status-card";
-  const progress = getTrackingStatusProgress(booking);
   progress.labels.forEach((label, index) => {
     const stage = document.createElement("div");
     stage.className = "booking-status-stage";
@@ -2571,12 +2579,22 @@ function renderTrackingBooking(booking) {
 
   const mapLink = document.createElement("a");
   mapLink.className = "booking-location-link tracking-location-link";
-  mapLink.href = MAP_URL;
-  mapLink.target = "_blank";
-  mapLink.rel = "noopener noreferrer";
-  mapLink.textContent = "فتح موقع مجلس الرقية";
+  const isVisitBooking = isExternalBookingType(booking.booking_type) || isHomeBookingType(booking.booking_type);
+  const trackingLocationUrl = isVisitBooking ? booking.customer_location_url : MAP_URL;
 
-  card.append(heading, details, statusSection, mapLink);
+  card.append(heading, currentStatus, details, statusSection);
+  if (trackingLocationUrl) {
+    mapLink.href = trackingLocationUrl;
+    mapLink.target = "_blank";
+    mapLink.rel = "noopener noreferrer";
+    mapLink.textContent = isVisitBooking ? "فتح موقع الزيارة" : "فتح موقع مجلس الرقية";
+    card.append(mapLink);
+  } else if (isVisitBooking) {
+    const locationNotice = document.createElement("p");
+    locationNotice.className = "tracking-location-notice";
+    locationNotice.textContent = "لم يتم تسجيل موقع للزيارة في هذا الحجز.";
+    card.append(locationNotice);
+  }
   trackingResult.append(card);
 }
 
