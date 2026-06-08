@@ -23,17 +23,16 @@ const MESSAGES = {
     "تنبيه: في حال لم يتم التحويل وإرسال الإيصال خلال 15 دقيقة سيتم إلغاء الحجز تلقائيا",
   whatsappConfirmation(booking) {
     const boldName = booking.name ? whatsappBold(booking.name) : null;
-    const boldDay = whatsappBold(booking.slot.day);
     const boldTime = whatsappBold(formatTime(booking.slot.time));
     if (isExternalBookingType(booking.booking_type)) {
-      const isPackage = isMultiDayBookingType(booking.booking_type, booking);
       return [
         boldName ? `مرحبًا ${boldName}` : "مرحبًا",
         "تم تأكيد باقة الزيارة خارج مدينة حائل.",
         `المنطقة: ${booking.region || booking.city}`,
         `المدينة: ${booking.visit_city || "-"}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`,
-        `الباقة: ${formatDateRange(booking.booking_start_date, booking.booking_end_date)}`,
+        "أيام الباقة:",
+        formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date),
         booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
         booking.alternate_phone ? `رقم التواصل عند الوصول: ${booking.alternate_phone}` : null
       ].filter(Boolean).join("\n");
@@ -44,8 +43,7 @@ const MESSAGES = {
         boldName ? `مرحبًا ${boldName}` : "مرحبًا",
         "تم تأكيد الزيارة المنزلية داخل مدينة حائل.",
         `الزيارة: ${whatsappBold(booking.appointment_title || booking.slot.title || "زيارة منزلية")}`,
-        `اليوم: ${boldDay}`,
-        `التاريخ: ${formatCombinedDate(booking.slot.date)}`,
+        `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
         `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)} إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`)}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`
       ].filter(Boolean).join("\n");
@@ -54,8 +52,7 @@ const MESSAGES = {
     return [
       boldName ? `مرحبًا ${boldName}` : "مرحبًا",
       "تم تأكيد موعدك بنجاح.",
-      `اليوم: ${boldDay}`,
-      `التاريخ: ${formatCombinedDate(booking.slot.date)}`,
+      `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
       `الساعة: ${boldTime}`,
       booking.home_session ? "نوع الموعد: زيارة منزلية" : null,
       `الموقع: ${MAP_URL}`,
@@ -747,6 +744,19 @@ function getDetailedPackageDays(start, end) {
     });
   }
   return days;
+}
+
+function formatWhatsappDayDate(dateKey) {
+  if (!dateKey) return whatsappBold("-");
+  const date = new Date(`${dateKey}T12:00:00`);
+  const day = new Intl.DateTimeFormat("ar-SA", { weekday: "long" }).format(date);
+  return whatsappBold(`${day} ${formatCombinedDate(dateKey)}`);
+}
+
+function formatWhatsappPackageDays(start, end) {
+  return getDetailedPackageDays(start, end)
+    .map((item) => whatsappBold(`${item.day} ${item.gregorian} (${item.hijri})`))
+    .join("\n");
 }
 
 function formatTime(value) {
