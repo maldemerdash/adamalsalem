@@ -45,7 +45,8 @@ const MESSAGES = {
         `الزيارة: ${whatsappBold(booking.appointment_title || booking.slot.title || "زيارة منزلية")}`,
         `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
         `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)} إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`)}`,
-        `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`
+        `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`,
+        booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null
       ].filter(Boolean).join("\n");
     }
 
@@ -103,6 +104,7 @@ const specialAppointmentField = document.querySelector("#specialAppointmentField
 const specialAppointmentInput = document.querySelector("#specialAppointmentInput");
 const userDayChoices = document.querySelector("#userDayChoices");
 const customerLocationField = document.querySelector("#customerLocationField");
+const customerLocationDescription = document.querySelector("#customerLocationDescription");
 const useCurrentLocationButton = document.querySelector("#useCurrentLocationButton");
 const chooseLocationButton = document.querySelector("#chooseLocationButton");
 const locationStatus = document.querySelector("#locationStatus");
@@ -181,6 +183,7 @@ let toastTimer = null;
 
 const AUTH_STORAGE_KEY = "appointmentAdminSession";
 const ADMIN_LAST_ACTIVITY_KEY = "appointmentAdminLastActivity";
+const BOOKING_CONFIRMATION_STORAGE_KEY = "appointmentLastBookingConfirmation";
 const ADMIN_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 let adminIdleCheckTimer = null;
 let adminAutoLogoutInProgress = false;
@@ -272,6 +275,9 @@ async function updateAuthUser(body) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result.error_description || result.msg || result.message || "تعذر تحديث بيانات الحساب.");
+  }
+  if (authSession && result?.id) {
+    saveAuthSession({ ...authSession, user: result });
   }
   return result;
 }
@@ -457,7 +463,7 @@ async function performLogout({ automatic = false, accountChanged = false, passwo
     showPanel("admin");
     showMessage(loginMessage, passwordRecovered
       ? "تم تغيير كلمة المرور بنجاح. سجّل الدخول بكلمة المرور الجديدة."
-      : "تم حفظ التغيير. إذا غيّرت البريد الإلكتروني، افتح رسالة التأكيد المرسلة إليه، ثم سجّل الدخول.", "success");
+      : "تم حفظ التغيير. تغيير البريد لا يكتمل إلا بعد فتح رابط التأكيد المرسل من Supabase إلى البريد الجديد، ثم تسجيل الدخول به.", "success");
     return;
   }
 
@@ -796,6 +802,7 @@ function isPendingExpired(booking, now = new Date()) {
 function getBookingStatusText(booking) {
   if (booking.attended) return "تم الحضور";
   if (booking.confirmed) return "تم تأكيد الموعد";
+  if (booking.receipt_sent) return "تم إرفاق الإيصال - بانتظار تأكيد المدير";
 
   const expiresAt = booking.expires_at ? new Date(booking.expires_at) : null;
   if (!expiresAt) return "بانتظار تأكيد الموعد";
@@ -1393,13 +1400,16 @@ function showBookingConfirmation(result) {
     wrapper.className = "external-message";
     const text = document.createElement("p");
     text.textContent = `تم تسجيل طلب باقة الزيارة في ${result.visit_city}. قيمة الزيارة: ${formatPrice(result.visit_price)} ريال.`;
+    const warning = document.createElement("p");
+    warning.className = "external-whatsapp-warning";
+    warning.textContent = "تنبيه: يجب الضغط على زر إرسال طلب الموعد عبر واتساب لإكمال إرسال الطلب إلى المدير.";
     const link = document.createElement("a");
     link.className = "whatsapp-button external-whatsapp";
     link.textContent = "إرسال طلب الموعد عبر واتساب";
     link.href = getExternalBookingWhatsappUrl(result);
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    wrapper.append(text, link);
+    wrapper.append(text, warning, link);
     bookingMessage.append(wrapper);
     return;
   }
@@ -1421,17 +1431,52 @@ function showBookingConfirmation(result) {
   qr.alt = "صورة الحساب البنكي";
 
   const whatsapp = document.createElement("p");
-  whatsapp.textContent = "وبعد التحويل يتم الضغط على زر إرفاق إيصال التحويل أسفل زر تأكيد الحجز";
+  whatsapp.textContent = "بعد التحويل وإرسال إيصال تحويل على الواتساب يرجى الضغط على الزر أدناه";
 
   const saveNote = document.createElement("p");
   saveNote.className = "payment-save-note";
-  saveNote.textContent = "تنبيه: يرجى التقاط الشاشة لحفظ رقم الحجز.";
+  saveNote.textContent = "تنبيه: لابد من حفظ رقم الحجز ونسخه للحاجة إليه بعد التحويل وإرفاق الإيصال.";
 
   const warning = document.createElement("p");
   warning.className = "payment-warning";
   warning.textContent = MESSAGES.paymentWarning;
 
   bookingMessage.append(text, qr, whatsapp, saveNote, warning);
+}
+
+function renderBookingNumber(bookingNumber) {
+  bookingNumberDisplay.innerHTML = "";
+  bookingNumberDisplay.classList.toggle("hidden", !bookingNumber);
+  if (!bookingNumber) return;
+
+  const number = document.createElement("strong");
+  number.textContent = `رقم الحجز: ${bookingNumber}`;
+  const note = document.createElement("span");
+  note.textContent = "لابد من حفظ رقم الحجز ونسخه للحاجة إليه بعد التحويل وإرفاق الإيصال.";
+  bookingNumberDisplay.append(number, note);
+}
+
+function saveBookingConfirmation(result) {
+  sessionStorage.setItem(BOOKING_CONFIRMATION_STORAGE_KEY, JSON.stringify({
+    saved_at: Date.now(),
+    result
+  }));
+}
+
+function restoreBookingConfirmation() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(BOOKING_CONFIRMATION_STORAGE_KEY));
+    if (!saved?.result || Date.now() - Number(saved.saved_at || 0) > 24 * 60 * 60 * 1000) {
+      sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
+      return false;
+    }
+    renderBookingNumber(saved.result.booking_number);
+    showBookingConfirmation(saved.result);
+    return true;
+  } catch {
+    sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
+    return false;
+  }
 }
 
 function setBusy(form, isBusy) {
@@ -1450,6 +1495,8 @@ function showPanel(name) {
     receiptPanel.classList.add("hidden");
     recoveryPanel.classList.add("hidden");
     if (isAdmin) handleAdminActivity();
+  } else {
+    restoreBookingConfirmation();
   }
 }
 
@@ -1769,18 +1816,40 @@ function appendAppointmentCell(row, booking) {
     return cell;
   }
 
-  const values = isHomeBookingType(booking.booking_type)
-      ? [
-          `${booking.slot.day} ${formatDate(booking.slot.date)}`,
-          booking.appointment_title || booking.slot.title || "موعد زيارة",
-          `${formatTime(booking.appointment_start_time || booking.slot.time)} - ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`
-        ]
-      : [`${booking.slot.day} ${formatDate(booking.slot.date)}`, formatTime(booking.slot.time)];
-  values.forEach((value) => {
-    const line = document.createElement("span");
-    line.textContent = value;
-    cell.append(line);
-  });
+  const card = document.createElement("div");
+  card.className = "appointment-detail-card";
+  const title = document.createElement("strong");
+  title.className = "appointment-package-title";
+  title.textContent = isHomeBookingType(booking.booking_type)
+    ? booking.appointment_title || booking.slot.title || "زيارة منزلية داخل مدينة حائل"
+    : booking.appointment_title || booking.slot.title || "موعد عام داخل مدينة حائل";
+
+  const dayRow = document.createElement("div");
+  dayRow.className = "appointment-package-day";
+  const order = document.createElement("span");
+  order.className = "package-day-order";
+  order.textContent = "اليوم";
+  const dayName = document.createElement("strong");
+  dayName.textContent = booking.slot.day;
+  const dates = document.createElement("span");
+  dates.className = "package-day-dates";
+  dates.textContent = formatDate(booking.slot.date);
+  dayRow.append(order, dayName, dates);
+
+  const timeRow = document.createElement("div");
+  timeRow.className = "appointment-time-row";
+  const timeLabel = document.createElement("span");
+  timeLabel.textContent = "الوقت";
+  const timeValue = document.createElement("strong");
+  const startTime = booking.appointment_start_time || booking.slot.time;
+  const endTime = booking.appointment_end_time || booking.slot.end_time;
+  timeValue.textContent = endTime
+    ? `${formatTime(startTime)} إلى ${formatTime(endTime)}`
+    : formatTime(startTime);
+  timeRow.append(timeLabel, timeValue);
+
+  card.append(title, dayRow, timeRow);
+  cell.append(card);
   row.append(cell);
   return cell;
 }
@@ -2060,7 +2129,7 @@ function renderReceiptBooking(booking) {
 
   const note = document.createElement("p");
   note.className = "receipt-note";
-  note.textContent = "بعد التحويل يتم إرسال إيصال تحويل على ال WhatsApp من خلال الضغط على الزر أدناه";
+  note.textContent = "بعد التحويل وإرسال إيصال تحويل على الواتساب يرجى الضغط على الزر أدناه";
 
   const sendLink = document.createElement("a");
   sendLink.className = "whatsapp-button receipt-whatsapp";
@@ -2068,6 +2137,29 @@ function renderReceiptBooking(booking) {
   sendLink.href = getReceiptWhatsappUrl(booking);
   sendLink.target = "_blank";
   sendLink.rel = "noopener noreferrer";
+  sendLink.addEventListener("click", async (event) => {
+    event.preventDefault();
+    const whatsappWindow = window.open("about:blank", "_blank");
+    try {
+      const marked = await markReceiptSent(booking.phone, booking.booking_number);
+      if (!marked && !booking.confirmed) {
+        whatsappWindow?.close();
+        showMessage(receiptMessage, "انتهت مهلة الحجز أو لم يعد الحجز متاحًا.", "error");
+        return;
+      }
+      if (whatsappWindow) {
+        whatsappWindow.opener = null;
+        whatsappWindow.location.href = sendLink.href;
+      } else {
+        window.location.href = sendLink.href;
+      }
+      booking.receipt_sent = true;
+      showMessage(receiptMessage, "تم تسجيل إرفاق الإيصال. الحجز ما زال بانتظار تأكيد المدير.", "success");
+    } catch (error) {
+      whatsappWindow?.close();
+      showMessage(receiptMessage, `تعذر تسجيل إرفاق الإيصال: ${error.message}`, "error");
+    }
+  });
 
   card.append(table, note, sendLink);
   receiptResult.append(card);
@@ -2095,6 +2187,16 @@ async function lookupReceiptBooking(phone, bookingNumber) {
       title: row.appointment_title
     }
   };
+}
+
+async function markReceiptSent(phone, bookingNumber) {
+  return api("rpc/mark_appointment_receipt_sent", {
+    method: "POST",
+    body: {
+      p_phone: phone,
+      p_booking_number: bookingNumber
+    }
+  });
 }
 
 async function recoverBookingNumber(phone) {
@@ -2364,6 +2466,26 @@ function updateSpecialAppointmentControls() {
   }
 }
 
+function updateCustomerLocationControls({ requestLocation = false } = {}) {
+  const isExternal = locationTypeInput.value === "external";
+  const isHomeVisit = !isExternal && homeSessionInput.checked;
+  const needsCustomerLocation = isExternal || isHomeVisit;
+  customerLocationField.classList.toggle("hidden", !needsCustomerLocation);
+  customerLocationDescription.textContent = isHomeVisit
+    ? "حدد موقع المنزل ليظهر للمدير عند مراجعة الزيارة المنزلية."
+    : "سيتم إرسال موقعك الحالي ضمن طلب الزيارة. لتعيين موقع مختلف اضغط زر اختيار موقع آخر.";
+
+  if (needsCustomerLocation && requestLocation && !selectedCustomerLocation) {
+    requestCurrentLocation().catch(() => {});
+  }
+  if (!needsCustomerLocation) {
+    selectedCustomerLocation = null;
+    customerLatInput.value = "";
+    customerLngInput.value = "";
+    locationStatus.textContent = "";
+  }
+}
+
 locationTypeInput.addEventListener("change", () => {
   const isExternal = locationTypeInput.value === "external";
   regionField.classList.toggle("hidden", !isExternal);
@@ -2371,27 +2493,20 @@ locationTypeInput.addEventListener("change", () => {
   regionInput.required = isExternal;
   visitCityInput.required = isExternal;
   homeSessionField.classList.toggle("hidden", isExternal);
-  customerLocationField.classList.toggle("hidden", !isExternal);
   if (isExternal) {
     homeSessionInput.checked = false;
     renderVisitCityOptions();
-    if (!selectedCustomerLocation) {
-      requestCurrentLocation().catch(() => {});
-    }
     if (!visitCities.length) {
       showMessage(bookingMessage, "الحجز خارج مدينة حائل غير متاح مؤقتًا حتى يكتمل تحديث قاعدة البيانات.", "error");
     }
   } else {
     regionInput.value = "";
     visitCityInput.innerHTML = '<option value="">اختر المدينة</option>';
-    selectedCustomerLocation = null;
-    customerLatInput.value = "";
-    customerLngInput.value = "";
-    locationStatus.textContent = "";
     showMessage(bookingMessage, "", "");
   }
   specialAppointmentInput.checked = false;
   updateSpecialAppointmentControls();
+  updateCustomerLocationControls({ requestLocation: isExternal });
   selectedSlotId = "";
   selectedBookingDate = "";
   slotSelect.value = "";
@@ -2404,6 +2519,7 @@ homeSessionInput.addEventListener("change", () => {
   slotSelect.value = "";
   specialAppointmentInput.checked = false;
   updateSpecialAppointmentControls();
+  updateCustomerLocationControls({ requestLocation: homeSessionInput.checked });
   renderBookingOptions();
 });
 
@@ -2709,7 +2825,20 @@ accountSecurityForm.addEventListener("submit", async (event) => {
     const updates = {};
     if (emailChanged) updates.email = requestedEmail;
     if (passwordChanged) updates.password = requestedPassword;
-    await updateAuthUser(updates);
+    const updatedUser = await updateAuthUser(updates);
+    const updatedEmail = String(updatedUser?.email || "").toLowerCase();
+    const emailPending = emailChanged && updatedEmail !== requestedEmail.toLowerCase();
+
+    if (emailPending && !passwordChanged) {
+      accountSecurityForm.reset();
+      newAdminEmail.value = requestedEmail;
+      showMessage(
+        accountSecurityMessage,
+        "تم إرسال رابط تأكيد إلى البريد الجديد. لن يتغير بريد الدخول في Supabase حتى تفتح رابط التأكيد، وبعدها سجّل الدخول بالبريد الجديد.",
+        "success"
+      );
+      return;
+    }
 
     await performLogout({ accountChanged: true });
   } catch (error) {
@@ -2776,6 +2905,7 @@ bookingForm.addEventListener("submit", async (event) => {
 
     const name = document.querySelector("#nameInput").value.trim();
     const locationType = locationTypeInput.value;
+    const needsCustomerLocation = locationType === "external" || homeSessionInput.checked;
     let selectedVisitCity = null;
     let alternatePhone = "";
 
@@ -2786,15 +2916,18 @@ bookingForm.addEventListener("submit", async (event) => {
         return;
       }
 
-      if (!selectedCustomerLocation) {
-        try {
-          await requestCurrentLocation();
-        } catch {
-          showMessage(bookingMessage, "يجب تحديد موقع الزيارة الحالي أو اختياره من الخريطة.", "error");
-          return;
-        }
-      }
+    }
 
+    if (needsCustomerLocation && !selectedCustomerLocation) {
+      try {
+        await requestCurrentLocation();
+      } catch {
+        showMessage(bookingMessage, "يجب تحديد موقع الزيارة الحالي أو اختياره من الخريطة.", "error");
+        return;
+      }
+    }
+
+    if (locationType === "external") {
       while (true) {
         const agreement = await askVisitPriceAgreement(selectedVisitCity);
         if (agreement.action === "change-location") {
@@ -2821,8 +2954,8 @@ bookingForm.addEventListener("submit", async (event) => {
         p_city: locationType === "external" ? visitCityInput.value : null,
         p_home_session: homeSessionInput.checked,
         p_price_accepted: locationType === "external",
-        p_customer_lat: locationType === "external" ? selectedCustomerLocation.lat : null,
-        p_customer_lng: locationType === "external" ? selectedCustomerLocation.lng : null,
+        p_customer_lat: needsCustomerLocation ? selectedCustomerLocation.lat : null,
+        p_customer_lng: needsCustomerLocation ? selectedCustomerLocation.lng : null,
         p_alternate_phone: locationType === "external" ? alternatePhone : null
       }
     });
@@ -2845,13 +2978,14 @@ bookingForm.addEventListener("submit", async (event) => {
     locationStatus.textContent = "";
     document.querySelector(".slots-note").textContent = "يتم إتاحة المواعيد العامة للأيام الأربعة القادمة فقط.";
     updateSpecialAppointmentControls();
+    updateCustomerLocationControls();
     selectedSlotId = "";
     selectedBookingDate = "";
     slotSelect.value = "";
     const bookingResult = { ...(created?.[0] || {}), name };
     const bookingNumber = bookingResult.booking_number || "";
-    bookingNumberDisplay.classList.toggle("hidden", !bookingNumber);
-    bookingNumberDisplay.textContent = bookingNumber ? `رقم الحجز: ${bookingNumber}` : "";
+    saveBookingConfirmation(bookingResult);
+    renderBookingNumber(bookingNumber);
     showBookingConfirmation(bookingResult);
     await refreshAll();
   } catch (error) {
@@ -2909,7 +3043,9 @@ async function boot() {
     }
     await loadVisitCities();
     await refreshAll();
-    showMessage(bookingMessage, "", "");
+    if (!restoreBookingConfirmation()) {
+      showMessage(bookingMessage, "", "");
+    }
   } catch (error) {
     showMessage(bookingMessage, "لم يتم الاتصال بقاعدة البيانات. شغّل ملف إعداد Supabase المحدث أولًا.", "error");
     console.error(error);
