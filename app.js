@@ -1061,8 +1061,7 @@ function getAvailableSlots() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const selectedType = getCurrentBookingType();
-  const specialPackageMinimumDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const specialPackageMinimumDateKey = toDateKey(specialPackageMinimumDate);
+  const specialPackageMinimumStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
   let available = slots
@@ -1072,7 +1071,7 @@ function getAvailableSlots() {
     .filter((slot) => slot.slot_type === selectedType)
     .filter((slot) => (
       slot.slot_type !== "special_external_package"
-      || slot.date >= specialPackageMinimumDateKey
+      || new Date(`${slot.date}T08:00:00+03:00`) >= specialPackageMinimumStart
     ))
     .filter((slot) => !isExternalBookingType(slot.slot_type) || isThreeDayExternalPackage(slot))
     .filter((slot) => !getReservedSlots().some((booking) => bookingConflictsWithSlot(booking, slot)))
