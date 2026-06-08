@@ -876,7 +876,6 @@ function getReceiptWhatsappUrl(booking) {
 
 function getExternalBookingWhatsappUrl(result) {
   const message = encodeURIComponent([
-    `رقم الحجز: ${result.booking_number}`,
     result.name ? `الاسم: ${whatsappBold(result.name)}` : null,
     `تم اختيار باقة زيارة خارج مدينة حائل في ${result.visit_city} - ${result.region}`,
     "أيام الباقة:",
@@ -1543,7 +1542,7 @@ function showBookingConfirmation(result) {
 
   const saveNote = document.createElement("p");
   saveNote.className = "payment-save-note";
-  saveNote.textContent = "تنبيه: لابد من حفظ رقم الحجز ونسخه للحاجة إليه بعد التحويل وإرفاق الإيصال.";
+  saveNote.textContent = "سيظهر رقم الحجز بعد إتمام التحويل وتسجيل إرسال الإيصال عبر واتساب.";
 
   const warning = document.createElement("p");
   warning.className = "payment-warning";
@@ -2271,7 +2270,6 @@ function renderReceiptBooking(booking) {
   table.innerHTML = `
     <tbody>
       <tr><th>الاسم</th><td></td></tr>
-      <tr><th>رقم الحجز</th><td></td></tr>
       <tr><th>اليوم</th><td></td></tr>
       <tr><th>التاريخ</th><td></td></tr>
       <tr><th>الساعة</th><td></td></tr>
@@ -2282,7 +2280,6 @@ function renderReceiptBooking(booking) {
   const cells = table.querySelectorAll("td");
   [
     booking.name || "غير مسجل",
-    booking.booking_number,
     isFullDayBookingType(booking.booking_type)
       ? isMultiDayBookingType(booking.booking_type, booking)
         ? "باقة خارج مدينة حائل"
@@ -2312,6 +2309,20 @@ function renderReceiptBooking(booking) {
   }
   note.textContent = "تنبيه: لا تضغط على زر إرسال واتساب إلا بعد إتمام التحويل فعليًا والاحتفاظ بإيصال التحويل لإرساله عبر واتساب.";
 
+  const receiptBookingNumber = document.createElement("div");
+  receiptBookingNumber.className = "booking-number receipt-booking-number hidden";
+
+  const revealBookingNumber = () => {
+    receiptBookingNumber.innerHTML = "";
+    const number = document.createElement("strong");
+    number.textContent = `رقم الحجز: ${booking.booking_number}`;
+    const numberNote = document.createElement("span");
+    numberNote.textContent = "احفظ رقم الحجز واحتفظ به لمتابعة حالة الموعد.";
+    receiptBookingNumber.append(number, numberNote);
+    receiptBookingNumber.classList.remove("hidden");
+    renderBookingNumber(booking.booking_number);
+  };
+
   const sendLink = document.createElement("a");
   sendLink.className = "whatsapp-button receipt-whatsapp";
   sendLink.textContent = "إرسال واتساب";
@@ -2335,6 +2346,7 @@ function renderReceiptBooking(booking) {
         openExternalMessage(sendLink.href);
       }
       booking.receipt_sent = true;
+      revealBookingNumber();
       showMessage(receiptMessage, "تم تسجيل إرفاق الإيصال. الحجز ما زال بانتظار تأكيد المدير.", "success");
     } catch (error) {
       whatsappWindow?.close();
@@ -2342,16 +2354,20 @@ function renderReceiptBooking(booking) {
     }
   });
 
-  card.append(table, note, sendLink);
+  if (booking.receipt_sent) {
+    revealBookingNumber();
+  }
+
+  card.append(table, note, sendLink, receiptBookingNumber);
   receiptResult.append(card);
 }
 
-async function lookupReceiptBooking(phone, bookingNumber) {
+async function lookupReceiptBooking(phone) {
   const rows = await api("rpc/lookup_appointment_booking", {
     method: "POST",
     body: {
       p_phone: phone,
-      p_booking_number: bookingNumber
+      p_booking_number: ""
     }
   });
   const row = rows?.[0];
@@ -2912,8 +2928,11 @@ receiptLookupForm.addEventListener("submit", async (event) => {
 
   try {
     const phone = document.querySelector("#receiptPhoneInput").value.trim();
-    const bookingNumber = document.querySelector("#receiptNumberInput").value.trim();
-    const booking = await lookupReceiptBooking(phone, bookingNumber);
+    if (!/^05\d{8}$/.test(phone)) {
+      showMessage(receiptMessage, "رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05.", "error");
+      return;
+    }
+    const booking = await lookupReceiptBooking(phone);
 
     if (!booking) {
       receiptResult.innerHTML = "";
@@ -3243,8 +3262,7 @@ bookingForm.addEventListener("submit", async (event) => {
     selectedBookingDate = "";
     slotSelect.value = "";
     const bookingResult = { ...(created?.[0] || {}), name, gender };
-    const bookingNumber = bookingResult.booking_number || "";
-    renderBookingNumber(bookingNumber);
+    renderBookingNumber(null);
     showBookingConfirmation(bookingResult);
     await refreshAll();
   } catch (error) {

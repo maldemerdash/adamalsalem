@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-    <link rel="stylesheet" href="styles.css?v=weekly-v12-28" />
+    <link rel="stylesheet" href="styles.css?v=weekly-v12-29" />
   </head>
   <body>
     <main class="page">
@@ -41,7 +41,7 @@
             <div class="list-head">
               <div>
                 <h2>إرفاق إيصال التحويل</h2>
-                <p>أدخل رقم الجوال ورقم الحجز لاسترجاع بيانات الموعد.</p>
+                <p>أدخل رقم الجوال المسجل لاسترجاع طلب الموعد وإرفاق الإيصال.</p>
               </div>
               <button id="closeReceiptButton" class="outline-action icon-action" type="button" title="إغلاق" aria-label="إغلاق">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -54,11 +54,7 @@
                 <span>رقم الجوال</span>
                 <input id="receiptPhoneInput" type="tel" required placeholder="05xxxxxxxx" />
               </label>
-              <label>
-                <span>رقم الحجز</span>
-                <input id="receiptNumberInput" type="text" required placeholder="مثال: 0991" />
-              </label>
-              <button class="secondary-action" type="submit">استرجاع الحجز</button>
+              <button class="secondary-action" type="submit">عرض طلب الموعد</button>
             </form>
             <div id="receiptResult" class="receipt-result"></div>
             <div id="receiptMessage" class="message" role="status" aria-live="polite"></div>
@@ -496,6 +492,6 @@
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="app.js?v=weekly-v12-28"></script>
+    <script src="app.js?v=weekly-v12-29"></script>
   </body>
 </html>
