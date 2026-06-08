@@ -209,7 +209,7 @@ function getArabicAuthError(error, context = "login") {
     return "كلمة المرور الجديدة ضعيفة أو قصيرة. استخدم 8 أحرف على الأقل.";
   }
   if (/rate limit|too many requests/i.test(message)) {
-    return "تمت محاولات كثيرة خلال وقت قصير. انتظر قليلًا ثم حاول مرة أخرى.";
+    return "";
   }
 
   return message || (context === "login"
@@ -2733,7 +2733,8 @@ adminLoginForm.addEventListener("submit", async (event) => {
   } catch (error) {
     saveAuthSession(null);
     isAdmin = false;
-    showMessage(loginMessage, getArabicAuthError(error, "login"), "error");
+    const loginError = getArabicAuthError(error, "login");
+    showMessage(loginMessage, loginError, loginError ? "error" : "");
     renderAll();
   } finally {
     setBusy(adminLoginForm, false);
