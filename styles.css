@@ -1575,6 +1575,13 @@ tr:has(.appointment-cell) td {
   font-size: 1.35rem;
 }
 
+.tracking-heading strong.not-issued {
+  color: var(--danger);
+  font-size: 0.88rem;
+  line-height: 1.7;
+  text-align: left;
+}
+
 .tracking-current-status {
   display: grid;
   gap: 6px;

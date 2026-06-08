@@ -2497,7 +2497,11 @@ function renderTrackingBooking(booking) {
   const headingLabel = document.createElement("span");
   headingLabel.textContent = "رقم الحجز";
   const headingNumber = document.createElement("strong");
-  headingNumber.textContent = booking.booking_number;
+  const bookingNumberIssued = Boolean(booking.receipt_sent || booking.confirmed || booking.attended);
+  headingNumber.textContent = bookingNumberIssued
+    ? booking.booking_number
+    : "لم يتم إصدار رقم الحجز لعدم التحويل";
+  if (!bookingNumberIssued) headingNumber.classList.add("not-issued");
   heading.append(headingLabel, headingNumber);
 
   if (booking.attended) {
@@ -2613,10 +2617,10 @@ function renderTrackingBooking(booking) {
   trackingResult.append(card);
 }
 
-async function trackBooking(bookingNumber) {
+async function trackBooking(phone) {
   const rows = await api("rpc/track_appointment_booking", {
     method: "POST",
-    body: { p_booking_number: bookingNumber }
+    body: { p_phone: phone }
   });
   return rows?.[0] || null;
 }
@@ -3207,15 +3211,15 @@ trackingForm.addEventListener("submit", async (event) => {
   showMessage(trackingMessage, "", "");
 
   try {
-    const bookingNumber = document.querySelector("#trackingNumberInput").value.trim();
-    if (!/^\d{4,}$/.test(bookingNumber)) {
-      showMessage(trackingMessage, "أدخل رقم حجز صحيحًا.", "error");
+    const phone = document.querySelector("#trackingPhoneInput").value.trim();
+    if (!/^05\d{8}$/.test(phone)) {
+      showMessage(trackingMessage, "رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05.", "error");
       return;
     }
 
-    const booking = await trackBooking(bookingNumber);
+    const booking = await trackBooking(phone);
     if (!booking) {
-      showMessage(trackingMessage, "لم يتم العثور على حجز بهذا الرقم.", "error");
+      showMessage(trackingMessage, "لم يتم العثور على حجز مسجل بهذا الجوال.", "error");
       return;
     }
 
