@@ -7,6 +7,7 @@ const INTERNAL_LAST_SLOT_MINUTES = 21 * 60 + 30;
 const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
 const RECEIPT_WHATSAPP_PHONE = "966555707854";
 const HAIL_COORDINATES = { lat: 27.5114, lng: 41.7208 };
+const HAIL_HOME_VISIT_RADIUS_KM = 30;
 const INTERNAL_WORK_DAYS = [
   { offset: 0, name: "الأحد" },
   { offset: 1, name: "الإثنين" },
@@ -1246,6 +1247,66 @@ function setCustomerLocation(location, source = "map") {
   locationStatus.className = "location-status success";
 }
 
+function getDistanceInKilometers(first, second) {
+  const toRadians = (value) => value * Math.PI / 180;
+  const earthRadiusKm = 6371;
+  const latitudeDifference = toRadians(Number(second.lat) - Number(first.lat));
+  const longitudeDifference = toRadians(Number(second.lng) - Number(first.lng));
+  const firstLatitude = toRadians(Number(first.lat));
+  const secondLatitude = toRadians(Number(second.lat));
+  const haversine = Math.sin(latitudeDifference / 2) ** 2
+    + Math.cos(firstLatitude) * Math.cos(secondLatitude)
+    * Math.sin(longitudeDifference / 2) ** 2;
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function isHomeVisitInsideHail() {
+  return locationTypeInput.value !== "external" && homeSessionInput.checked;
+}
+
+function isLocationInsideHailCity(location) {
+  return getDistanceInKilometers(HAIL_COORDINATES, location) <= HAIL_HOME_VISIT_RADIUS_KM;
+}
+
+function showHomeVisitLocationWarning() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="alertdialog" aria-modal="true" aria-label="الموقع خارج نطاق الزيارة المنزلية">
+        <h3>الموقع خارج نطاق الزيارة المنزلية</h3>
+        <p>الموقع المحدد خارج مدينة حائل. اختر موقعًا داخل مدينة حائل، أو غيّر مكان الموعد إلى خارج مدينة حائل لطلب زيارة خارجية.</p>
+        <div class="choice-actions">
+          <button class="primary-action" type="button">حسنًا</button>
+        </div>
+      </div>
+    `;
+
+    const close = () => {
+      overlay.remove();
+      resolve();
+    };
+    overlay.querySelector("button").addEventListener("click", close);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+    document.body.append(overlay);
+  });
+}
+
+async function acceptCustomerLocation(location, source = "map") {
+  if (isHomeVisitInsideHail() && !isLocationInsideHailCity(location)) {
+    locationStatus.textContent = "الموقع المحدد خارج نطاق الزيارات المنزلية داخل مدينة حائل.";
+    locationStatus.className = "location-status error";
+    await showHomeVisitLocationWarning();
+    return false;
+  }
+
+  setCustomerLocation(location, source);
+  return true;
+}
+
 function requestCurrentLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -1256,12 +1317,18 @@ function requestCurrentLocation() {
     locationStatus.textContent = "جاري تحديد موقعك...";
     locationStatus.className = "location-status";
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const location = {
           lat: position.coords.latitude,
           lng: position.coords.longitude
         };
-        setCustomerLocation(location, "current");
+        const accepted = await acceptCustomerLocation(location, "current");
+        if (!accepted) {
+          const error = new Error("HOME_VISIT_OUT_OF_RANGE");
+          error.code = "HOME_VISIT_OUT_OF_RANGE";
+          reject(error);
+          return;
+        }
         resolve(location);
       },
       () => {
@@ -1457,23 +1524,30 @@ function renderBookingNumber(bookingNumber) {
 }
 
 function saveBookingConfirmation(result) {
-  sessionStorage.setItem(BOOKING_CONFIRMATION_STORAGE_KEY, JSON.stringify({
+  localStorage.setItem(BOOKING_CONFIRMATION_STORAGE_KEY, JSON.stringify({
     saved_at: Date.now(),
     result
   }));
+  sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
 }
 
 function restoreBookingConfirmation() {
   try {
-    const saved = JSON.parse(sessionStorage.getItem(BOOKING_CONFIRMATION_STORAGE_KEY));
+    const storedValue = localStorage.getItem(BOOKING_CONFIRMATION_STORAGE_KEY)
+      || sessionStorage.getItem(BOOKING_CONFIRMATION_STORAGE_KEY);
+    const saved = JSON.parse(storedValue);
     if (!saved?.result || Date.now() - Number(saved.saved_at || 0) > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
       sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
       return false;
     }
+    localStorage.setItem(BOOKING_CONFIRMATION_STORAGE_KEY, JSON.stringify(saved));
+    sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
     renderBookingNumber(saved.result.booking_number);
     showBookingConfirmation(saved.result);
     return true;
   } catch {
+    localStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
     sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
     return false;
   }
@@ -2151,7 +2225,7 @@ function renderReceiptBooking(booking) {
         whatsappWindow.opener = null;
         whatsappWindow.location.href = sendLink.href;
       } else {
-        window.location.href = sendLink.href;
+        openExternalMessage(sendLink.href);
       }
       booking.receipt_sent = true;
       showMessage(receiptMessage, "تم تسجيل إرفاق الإيصال. الحجز ما زال بانتظار تأكيد المدير.", "success");
@@ -2367,7 +2441,14 @@ function openExternalMessage(url) {
     return;
   }
 
-  window.location.href = url;
+  const externalLink = document.createElement("a");
+  externalLink.href = url;
+  externalLink.target = "_blank";
+  externalLink.rel = "noopener noreferrer";
+  externalLink.className = "hidden";
+  document.body.append(externalLink);
+  externalLink.click();
+  externalLink.remove();
 }
 
 async function cancelBooking(booking) {
@@ -2384,7 +2465,10 @@ async function deleteCompletedBooking(bookingId) {
 }
 
 adminLoginButton.addEventListener("click", () => showPanel("admin"));
-backToBookingButton.addEventListener("click", () => showPanel("booking"));
+backToBookingButton.addEventListener("click", () => {
+  showPanel("booking");
+  restoreBookingConfirmation();
+});
 regenerateSlotsButton.addEventListener("click", regenerateWeeklySlots);
 suspendWeekButton.addEventListener("click", toggleCurrentWeekSuspension);
 receiptButton.addEventListener("click", () => {
@@ -2411,8 +2495,14 @@ chooseLocationButton.addEventListener("click", () => {
   openLocationPicker();
 });
 
-confirmMapLocationButton.addEventListener("click", () => {
-  closeLocationPicker(pendingMapLocation);
+confirmMapLocationButton.addEventListener("click", async () => {
+  if (!pendingMapLocation) return;
+  const accepted = await acceptCustomerLocation(pendingMapLocation, "map");
+  if (!accepted) return;
+  mapPickerPanel.classList.add("hidden");
+  const resolve = mapPickerResolver;
+  mapPickerResolver = null;
+  resolve?.(pendingMapLocation);
 });
 
 cancelMapLocationButton.addEventListener("click", () => {
@@ -2922,10 +3012,16 @@ bookingForm.addEventListener("submit", async (event) => {
     if (needsCustomerLocation && !selectedCustomerLocation) {
       try {
         await requestCurrentLocation();
-      } catch {
+      } catch (error) {
+        if (error?.code === "HOME_VISIT_OUT_OF_RANGE") return;
         showMessage(bookingMessage, "يجب تحديد موقع الزيارة الحالي أو اختياره من الخريطة.", "error");
         return;
       }
+    }
+
+    if (isHomeVisitInsideHail() && !isLocationInsideHailCity(selectedCustomerLocation)) {
+      await showHomeVisitLocationWarning();
+      return;
     }
 
     if (locationType === "external") {
