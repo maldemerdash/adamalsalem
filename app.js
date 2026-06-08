@@ -831,7 +831,7 @@ function getExternalApprovalWhatsappUrl(booking) {
   const phone = toWhatsappPhone(booking.phone);
   const message = encodeURIComponent([
     booking.name ? `مرحبًا ${whatsappBold(booking.name)}` : "مرحبًا",
-    whatsappBold("تمت الموافقة على طلب باقة الزيارة خارج مدينة حائل."),
+    `${whatsappBold("تمت الموافقة")} على طلب باقة الزيارة خارج مدينة حائل.`,
     `المنطقة: ${booking.region || booking.city}`,
     `المدينة: ${booking.visit_city || "-"}`,
     "أيام الباقة:",
@@ -849,7 +849,7 @@ function getReceiptWhatsappUrl(booking) {
   const isExternal = isExternalBookingType(booking.booking_type);
   const isPackage = isMultiDayBookingType(booking.booking_type, booking);
   const message = encodeURIComponent([
-    whatsappBold(`تم إرفاق إيصال للموعد رقم ${booking.booking_number}`),
+    `*تم إرفاق إيصال للموعد رقم ${booking.booking_number}*`,
     booking.name ? `باسم ${whatsappBold(booking.name)}` : null,
     isPackage
       ? `أيام الباقة:\n${formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date)}`
