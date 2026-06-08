@@ -132,6 +132,7 @@ const adminDashboard = document.querySelector("#adminDashboard");
 const adminLoginButton = document.querySelector("#adminLoginButton");
 const backToBookingButton = document.querySelector("#backToBookingButton");
 const logoutButton = document.querySelector("#logoutButton");
+const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
 const accountSecurityButton = document.querySelector("#accountSecurityButton");
 const accountSecurityPanel = document.querySelector("#accountSecurityPanel");
 const accountSecurityForm = document.querySelector("#accountSecurityForm");
@@ -141,6 +142,11 @@ const newAdminEmail = document.querySelector("#newAdminEmail");
 const newAdminPassword = document.querySelector("#newAdminPassword");
 const confirmAdminPassword = document.querySelector("#confirmAdminPassword");
 const accountSecurityMessage = document.querySelector("#accountSecurityMessage");
+const passwordRecoveryPanel = document.querySelector("#passwordRecoveryPanel");
+const passwordRecoveryForm = document.querySelector("#passwordRecoveryForm");
+const recoveryAdminPassword = document.querySelector("#recoveryAdminPassword");
+const confirmRecoveryAdminPassword = document.querySelector("#confirmRecoveryAdminPassword");
+const passwordRecoveryMessage = document.querySelector("#passwordRecoveryMessage");
 const regenerateSlotsButton = document.querySelector("#regenerateSlotsButton");
 const suspendWeekButton = document.querySelector("#suspendWeekButton");
 const internalAvailableSlots = document.querySelector("#internalAvailableSlots");
@@ -269,6 +275,44 @@ async function updateAuthUser(body) {
   return result;
 }
 
+async function sendPasswordRecoveryEmail(email) {
+  const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+  const response = await fetch(
+    `${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectUrl)}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email })
+    }
+  );
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.error_description || result.msg || result.message || "تعذر إرسال رسالة الاستعادة.");
+  }
+}
+
+function getRecoverySessionFromUrl() {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  if (params.get("type") !== "recovery" || !params.get("access_token")) return null;
+
+  return {
+    access_token: params.get("access_token"),
+    refresh_token: params.get("refresh_token"),
+    expires_in: Number(params.get("expires_in")) || 3600,
+    expires_at: Math.floor(Date.now() / 1000) + (Number(params.get("expires_in")) || 3600),
+    token_type: params.get("token_type") || "bearer",
+    user: null
+  };
+}
+
+function clearAuthCallbackFromUrl() {
+  window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+}
+
 function saveAuthSession(session) {
   authSession = session;
   if (session) {
@@ -356,7 +400,7 @@ function startAdminIdleTimer() {
   }, 15 * 1000);
 }
 
-async function performLogout({ automatic = false, accountChanged = false } = {}) {
+async function performLogout({ automatic = false, accountChanged = false, passwordRecovered = false } = {}) {
   stopAdminIdleTimer();
   if (authSession?.access_token) {
     await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
@@ -382,11 +426,9 @@ async function performLogout({ automatic = false, accountChanged = false } = {})
 
   if (accountChanged) {
     showPanel("admin");
-    showMessage(
-      loginMessage,
-      "تم حفظ التغيير. إذا غيّرت البريد الإلكتروني، افتح رسالة التأكيد المرسلة إليه، ثم سجّل الدخول.",
-      "success"
-    );
+    showMessage(loginMessage, passwordRecovered
+      ? "تم تغيير كلمة المرور بنجاح. سجّل الدخول بكلمة المرور الجديدة."
+      : "تم حفظ التغيير. إذا غيّرت البريد الإلكتروني، افتح رسالة التأكيد المرسلة إليه، ثم سجّل الدخول.", "success");
     return;
   }
 
@@ -2438,6 +2480,29 @@ adminLoginForm.addEventListener("submit", async (event) => {
   }
 });
 
+forgotPasswordButton.addEventListener("click", async () => {
+  const email = document.querySelector("#adminEmail").value.trim();
+  if (!email || !document.querySelector("#adminEmail").checkValidity()) {
+    showMessage(loginMessage, "اكتب البريد الإلكتروني الصحيح أولًا، ثم اضغط استعادة كلمة المرور.", "error");
+    document.querySelector("#adminEmail").focus();
+    return;
+  }
+
+  forgotPasswordButton.disabled = true;
+  try {
+    await sendPasswordRecoveryEmail(email);
+    showMessage(
+      loginMessage,
+      "تم إرسال رابط استعادة كلمة المرور إلى البريد إذا كان مسجلًا. افحص صندوق الوارد والرسائل غير المرغوب فيها.",
+      "success"
+    );
+  } catch (error) {
+    showMessage(loginMessage, getArabicAuthError(error, "recovery"), "error");
+  } finally {
+    forgotPasswordButton.disabled = false;
+  }
+});
+
 logoutButton.addEventListener("click", () => {
   performLogout().catch(console.error);
 });
@@ -2507,6 +2572,34 @@ accountSecurityForm.addEventListener("submit", async (event) => {
     showMessage(accountSecurityMessage, getArabicAuthError(error, "current-password"), "error");
   } finally {
     setBusy(accountSecurityForm, false);
+  }
+});
+
+passwordRecoveryForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = recoveryAdminPassword.value;
+  const confirmation = confirmRecoveryAdminPassword.value;
+
+  if (password.length < 8) {
+    showMessage(passwordRecoveryMessage, "كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف.", "error");
+    return;
+  }
+  if (password !== confirmation) {
+    showMessage(passwordRecoveryMessage, "تأكيد كلمة المرور الجديدة غير مطابق.", "error");
+    return;
+  }
+
+  setBusy(passwordRecoveryForm, true);
+  try {
+    await updateAuthUser({ password });
+    passwordRecoveryPanel.classList.add("hidden");
+    passwordRecoveryForm.reset();
+    clearAuthCallbackFromUrl();
+    await performLogout({ accountChanged: true, passwordRecovered: true });
+  } catch (error) {
+    showMessage(passwordRecoveryMessage, getArabicAuthError(error, "recovery"), "error");
+  } finally {
+    setBusy(passwordRecoveryForm, false);
   }
 });
 
@@ -2641,7 +2734,15 @@ bookingForm.addEventListener("submit", async (event) => {
 async function boot() {
   try {
     showMessage(bookingMessage, "جاري تحميل المواعيد...", "success");
-    restoreAuthSession();
+    const recoverySession = getRecoverySessionFromUrl();
+    if (recoverySession) {
+      saveAuthSession(recoverySession);
+      showPanel("admin");
+      passwordRecoveryPanel.classList.remove("hidden");
+      setTimeout(() => recoveryAdminPassword.focus(), 0);
+    } else {
+      restoreAuthSession();
+    }
     await loadPrayerTimes();
     await verifyAdminSession();
     if (isAdmin) {
