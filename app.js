@@ -132,6 +132,15 @@ const adminDashboard = document.querySelector("#adminDashboard");
 const adminLoginButton = document.querySelector("#adminLoginButton");
 const backToBookingButton = document.querySelector("#backToBookingButton");
 const logoutButton = document.querySelector("#logoutButton");
+const accountSecurityButton = document.querySelector("#accountSecurityButton");
+const accountSecurityPanel = document.querySelector("#accountSecurityPanel");
+const accountSecurityForm = document.querySelector("#accountSecurityForm");
+const closeAccountSecurityButton = document.querySelector("#closeAccountSecurityButton");
+const currentAdminPassword = document.querySelector("#currentAdminPassword");
+const newAdminEmail = document.querySelector("#newAdminEmail");
+const newAdminPassword = document.querySelector("#newAdminPassword");
+const confirmAdminPassword = document.querySelector("#confirmAdminPassword");
+const accountSecurityMessage = document.querySelector("#accountSecurityMessage");
 const regenerateSlotsButton = document.querySelector("#regenerateSlotsButton");
 const suspendWeekButton = document.querySelector("#suspendWeekButton");
 const internalAvailableSlots = document.querySelector("#internalAvailableSlots");
@@ -165,6 +174,9 @@ const toast = document.querySelector("#toast");
 let toastTimer = null;
 
 const AUTH_STORAGE_KEY = "appointmentAdminSession";
+const ADMIN_LAST_ACTIVITY_KEY = "appointmentAdminLastActivity";
+const ADMIN_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+let adminIdleCheckTimer = null;
 
 async function api(path, options = {}) {
   const accessToken = authSession?.access_token || SUPABASE_KEY;
@@ -210,12 +222,31 @@ async function authApi(path, body) {
   return result;
 }
 
+async function updateAuthUser(body) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${authSession?.access_token || ""}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.error_description || result.msg || result.message || "تعذر تحديث بيانات الحساب.");
+  }
+  return result;
+}
+
 function saveAuthSession(session) {
   authSession = session;
   if (session) {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
   } else {
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(ADMIN_LAST_ACTIVITY_KEY);
   }
 }
 
@@ -264,6 +295,75 @@ async function verifyAdminSession(allowRefresh = true) {
     isAdmin = false;
     return false;
   }
+}
+
+function markAdminActivity() {
+  if (!isAdmin || !adminPanel.classList.contains("active")) return;
+  localStorage.setItem(ADMIN_LAST_ACTIVITY_KEY, String(Date.now()));
+}
+
+function getAdminIdleDuration() {
+  const lastActivity = Number(localStorage.getItem(ADMIN_LAST_ACTIVITY_KEY));
+  if (!Number.isFinite(lastActivity) || lastActivity <= 0) return 0;
+  return Date.now() - lastActivity;
+}
+
+function stopAdminIdleTimer() {
+  if (adminIdleCheckTimer) {
+    clearInterval(adminIdleCheckTimer);
+    adminIdleCheckTimer = null;
+  }
+}
+
+function startAdminIdleTimer() {
+  stopAdminIdleTimer();
+  if (!localStorage.getItem(ADMIN_LAST_ACTIVITY_KEY)) {
+    markAdminActivity();
+  }
+  adminIdleCheckTimer = setInterval(() => {
+    if (isAdmin && getAdminIdleDuration() >= ADMIN_IDLE_TIMEOUT_MS) {
+      performLogout({ automatic: true }).catch(console.error);
+    }
+  }, 15 * 1000);
+}
+
+async function performLogout({ automatic = false, accountChanged = false } = {}) {
+  stopAdminIdleTimer();
+  if (authSession?.access_token) {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${authSession.access_token}`
+      }
+    }).catch(() => {});
+  }
+
+  saveAuthSession(null);
+  isAdmin = false;
+  accountSecurityPanel.classList.add("hidden");
+  accountSecurityForm.reset();
+  renderAdminAccess();
+
+  if (automatic) {
+    showPanel("admin");
+    showMessage(loginMessage, "تم تسجيل الخروج تلقائيًا لعدم وجود نشاط لمدة 10 دقائق.", "error");
+    return;
+  }
+
+  if (accountChanged) {
+    showPanel("admin");
+    showMessage(
+      loginMessage,
+      "تم حفظ التغيير. إذا غيّرت البريد الإلكتروني، افتح رسالة التأكيد المرسلة إليه، ثم سجّل الدخول.",
+      "success"
+    );
+    return;
+  }
+
+  showToast("تم تسجيل الخروج.");
+  showPanel("booking");
+  await refreshAll();
 }
 
 function pad(value) {
@@ -1191,14 +1291,15 @@ function setBusy(form, isBusy) {
 }
 
 function showPanel(name) {
-  const isAdmin = name === "admin";
-  bookingPanel.classList.toggle("active", !isAdmin);
-  adminPanel.classList.toggle("active", isAdmin);
-  receiptButton.classList.toggle("hidden", isAdmin);
-  recoveryButton.classList.toggle("hidden", isAdmin);
-  if (isAdmin) {
+  const isAdminPanel = name === "admin";
+  bookingPanel.classList.toggle("active", !isAdminPanel);
+  adminPanel.classList.toggle("active", isAdminPanel);
+  receiptButton.classList.toggle("hidden", isAdminPanel);
+  recoveryButton.classList.toggle("hidden", isAdminPanel);
+  if (isAdminPanel) {
     receiptPanel.classList.add("hidden");
     recoveryPanel.classList.add("hidden");
+    if (isAdmin) markAdminActivity();
   }
 }
 
@@ -2295,6 +2396,8 @@ adminLoginForm.addEventListener("submit", async (event) => {
     adminLoginForm.reset();
     showMessage(loginMessage, "", "");
     showToast("تم تسجيل الدخول بنجاح.");
+    localStorage.setItem(ADMIN_LAST_ACTIVITY_KEY, String(Date.now()));
+    startAdminIdleTimer();
     await refreshAll();
   } catch (error) {
     saveAuthSession(null);
@@ -2306,21 +2409,79 @@ adminLoginForm.addEventListener("submit", async (event) => {
   }
 });
 
-logoutButton.addEventListener("click", async () => {
-  if (authSession?.access_token) {
-    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${authSession.access_token}`
-      }
-    }).catch(() => {});
+logoutButton.addEventListener("click", () => {
+  performLogout().catch(console.error);
+});
+
+accountSecurityButton.addEventListener("click", () => {
+  accountSecurityForm.reset();
+  newAdminEmail.value = authSession?.user?.email || "";
+  showMessage(accountSecurityMessage, "", "");
+  accountSecurityPanel.classList.remove("hidden");
+  currentAdminPassword.focus();
+});
+
+closeAccountSecurityButton.addEventListener("click", () => {
+  accountSecurityPanel.classList.add("hidden");
+  accountSecurityForm.reset();
+  showMessage(accountSecurityMessage, "", "");
+});
+
+accountSecurityPanel.addEventListener("click", (event) => {
+  if (event.target === accountSecurityPanel) {
+    closeAccountSecurityButton.click();
   }
-  saveAuthSession(null);
-  isAdmin = false;
-  showToast("تم تسجيل الخروج.");
-  showPanel("booking");
-  await refreshAll();
+});
+
+accountSecurityForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const currentEmail = authSession?.user?.email;
+  const requestedEmail = newAdminEmail.value.trim();
+  const requestedPassword = newAdminPassword.value;
+  const passwordConfirmation = confirmAdminPassword.value;
+
+  if (!currentEmail) {
+    showMessage(accountSecurityMessage, "تعذر قراءة بريد الحساب الحالي. سجّل الخروج ثم ادخل مرة أخرى.", "error");
+    return;
+  }
+
+  const emailChanged = requestedEmail && requestedEmail.toLowerCase() !== currentEmail.toLowerCase();
+  const passwordChanged = Boolean(requestedPassword);
+  if (!emailChanged && !passwordChanged) {
+    showMessage(accountSecurityMessage, "أدخل بريدًا جديدًا أو كلمة مرور جديدة.", "error");
+    return;
+  }
+  if (passwordChanged && requestedPassword.length < 8) {
+    showMessage(accountSecurityMessage, "كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف.", "error");
+    return;
+  }
+  if (passwordChanged && requestedPassword !== passwordConfirmation) {
+    showMessage(accountSecurityMessage, "تأكيد كلمة المرور الجديدة غير مطابق.", "error");
+    return;
+  }
+
+  setBusy(accountSecurityForm, true);
+  try {
+    const verifiedSession = await authApi("token?grant_type=password", {
+      email: currentEmail,
+      password: currentAdminPassword.value
+    });
+    saveAuthSession(verifiedSession);
+
+    const updates = {};
+    if (emailChanged) updates.email = requestedEmail;
+    if (passwordChanged) updates.password = requestedPassword;
+    await updateAuthUser(updates);
+
+    await performLogout({ accountChanged: true });
+  } catch (error) {
+    const message = /invalid login|invalid credentials/i.test(error.message)
+      ? "كلمة المرور الحالية غير صحيحة."
+      : error.message;
+    showMessage(accountSecurityMessage, message, "error");
+  } finally {
+    setBusy(accountSecurityForm, false);
+  }
 });
 
 bookingForm.addEventListener("submit", async (event) => {
@@ -2457,6 +2618,17 @@ async function boot() {
     restoreAuthSession();
     await loadPrayerTimes();
     await verifyAdminSession();
+    if (isAdmin) {
+      const idleDuration = getAdminIdleDuration();
+      if (idleDuration >= ADMIN_IDLE_TIMEOUT_MS) {
+        await performLogout({ automatic: true });
+      } else {
+        if (!localStorage.getItem(ADMIN_LAST_ACTIVITY_KEY)) {
+          localStorage.setItem(ADMIN_LAST_ACTIVITY_KEY, String(Date.now()));
+        }
+        startAdminIdleTimer();
+      }
+    }
     await loadVisitCities();
     await refreshAll();
     showMessage(bookingMessage, "", "");
@@ -2465,6 +2637,10 @@ async function boot() {
     console.error(error);
   }
 }
+
+["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => {
+  document.addEventListener(eventName, markAdminActivity, { passive: true });
+});
 
 boot();
 setInterval(() => {
