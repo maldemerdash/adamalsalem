@@ -594,7 +594,8 @@ function appendPrayerBreaks(parent, dateKey) {
   container.className = "prayer-breaks";
   const [maghrib, isha] = breaks;
   const note = document.createElement("p");
-  note.textContent = `توقف المواعيد للصلاة: المغرب ${formatTime(minutesToTime(maghrib.start))}–${formatTime(minutesToTime(maghrib.end))}، العشاء ${formatTime(minutesToTime(isha.start))}–${formatTime(minutesToTime(isha.end))}.`;
+  const compactTime = (minutes) => formatTime(minutesToTime(minutes)).replace(/\s+/g, "");
+  note.textContent = `توقف الصلاة: المغرب ${compactTime(maghrib.start)}–${compactTime(maghrib.end)}، العشاء ${compactTime(isha.start)}–${compactTime(isha.end)}.`;
   container.append(note);
   parent.append(container);
 }
@@ -2151,6 +2152,7 @@ function updateWeekButton() {
 
 function renderBookingsTable() {
   const allReserved = getReservedSlots();
+  const activeReserved = allReserved.filter((booking) => !booking.attended);
   const reserved = adminBookingFilter === "all"
     ? allReserved
     : allReserved.filter((booking) => {
@@ -2158,7 +2160,7 @@ function renderBookingsTable() {
         if (adminBookingFilter === "external") return isExternalBookingType(booking.booking_type);
         return booking.booking_type === adminBookingFilter;
       });
-  reservedCount.textContent = `${allReserved.length} موعد`;
+  reservedCount.textContent = `${activeReserved.length} موعد`;
   reservedSlots.innerHTML = "";
 
   if (!reserved.length) {
