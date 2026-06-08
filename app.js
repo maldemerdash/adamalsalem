@@ -491,14 +491,14 @@ function getWeekStart(date = new Date()) {
 }
 
 function getSlotDateTime(slot) {
-  return new Date(`${slot.date}T${slot.time}:00`);
+  return new Date(`${slot.date}T${slot.time}:00+03:00`);
 }
 
 function getSlotEndDateTime(slot) {
   const endTime = slot.end_time || minutesToTime(
     Number(slot.time.slice(0, 2)) * 60 + Number(slot.time.slice(3, 5)) + 30
   );
-  return new Date(`${slot.date}T${endTime}:00`);
+  return new Date(`${slot.date}T${endTime}:00+03:00`);
 }
 
 function timeToMinutes(time) {
@@ -1152,7 +1152,7 @@ function getAvailableSlots() {
       return date >= today && (selectedType === "internal" || date <= monthEnd);
     })
     .filter((slot) => slot.slot_type !== "internal" || !isPrayerBlocked(slot.date, slot.time))
-    .filter((slot) => slot.slot_type !== "internal" || getSlotEndDateTime(slot) > now)
+    .filter((slot) => isFullDayBookingType(slot.slot_type) || getSlotDateTime(slot) > now)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 
   if (selectedType === "internal") {
@@ -1180,7 +1180,7 @@ function getAdminOpenSlots(slotType = null) {
       return slotDate >= today && (slot.slot_type === "internal" || slotDate <= externalEnd);
     })
     .filter((slot) => slot.slot_type !== "internal" || !isPrayerBlocked(slot.date, slot.time))
-    .filter((slot) => getSlotEndDateTime(slot) > now)
+    .filter((slot) => isFullDayBookingType(slot.slot_type) || getSlotDateTime(slot) > now)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 
   if (!slotType || slotType === "internal") {
@@ -3294,6 +3294,12 @@ document.addEventListener("visibilitychange", () => {
 });
 
 window.addEventListener("focus", handleAdminActivity);
+
+setInterval(() => {
+  if (bookingPanel.classList.contains("active")) {
+    renderBookingOptions();
+  }
+}, 15000);
 
 document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   button.addEventListener("click", () => {
