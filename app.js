@@ -1498,7 +1498,15 @@ function showBookingConfirmation(result) {
   qr.alt = "صورة الحساب البنكي";
 
   const whatsapp = document.createElement("p");
-  whatsapp.textContent = "بعد التحويل وإرسال إيصال تحويل على الواتساب يرجى الضغط على الزر أدناه";
+  whatsapp.textContent = "بعد التحويل على رقم الحساب الظاهر، يرجى الضغط على زر إرفاق إيصال التحويل.";
+
+  const receiptAction = document.createElement("button");
+  receiptAction.className = "receipt-highlight-button inline-receipt-button";
+  receiptAction.type = "button";
+  receiptAction.textContent = "إرفاق إيصال التحويل";
+  receiptAction.addEventListener("click", () => {
+    receiptPanel.classList.remove("hidden");
+  });
 
   const saveNote = document.createElement("p");
   saveNote.className = "payment-save-note";
@@ -1508,7 +1516,7 @@ function showBookingConfirmation(result) {
   warning.className = "payment-warning";
   warning.textContent = MESSAGES.paymentWarning;
 
-  bookingMessage.append(text, qr, whatsapp, saveNote, warning);
+  bookingMessage.append(text, qr, whatsapp, receiptAction, saveNote, warning);
 }
 
 function renderBookingNumber(bookingNumber) {
@@ -1928,6 +1936,55 @@ function appendAppointmentCell(row, booking) {
   return cell;
 }
 
+function appendBookingStatusCell(row, booking) {
+  const cell = document.createElement("td");
+  cell.className = "booking-status-cell";
+  const card = document.createElement("div");
+  card.className = "booking-status-card";
+  const expiresAt = booking.expires_at ? new Date(booking.expires_at) : null;
+  const currentStage = booking.attended
+    ? 3
+    : booking.confirmed
+      ? 2
+      : booking.receipt_sent
+        ? 1
+        : 0;
+  const completedStages = [
+    Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+    Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+    Boolean(booking.confirmed || booking.attended),
+    Boolean(booking.attended)
+  ];
+  const stages = [
+    expiresAt ? `بانتظار التحويل حتى ${formatTimeFromDate(expiresAt)}` : "بانتظار التحويل",
+    "تم إرفاق الإيصال - بانتظار تأكيد المدير",
+    "تم تأكيد الموعد",
+    "تم الحضور وإتمام الجلسة"
+  ];
+
+  stages.forEach((label, index) => {
+    const stage = document.createElement("div");
+    stage.className = "booking-status-stage";
+    if (completedStages[index]) stage.classList.add("completed");
+    if (index === currentStage) stage.classList.add("current");
+    if (index > currentStage) stage.classList.add("upcoming");
+
+    const marker = document.createElement("span");
+    marker.className = "booking-status-marker";
+    marker.textContent = completedStages[index] ? "✓" : index === currentStage ? "•" : String(index + 1);
+
+    const text = document.createElement("span");
+    text.className = "booking-status-label";
+    text.textContent = label;
+    stage.append(marker, text);
+    card.append(stage);
+  });
+
+  cell.append(card);
+  row.append(cell);
+  return cell;
+}
+
 function renderAdminSlotGroup(container, available) {
   container.innerHTML = "";
 
@@ -2098,7 +2155,7 @@ function renderBookingsTable() {
     appendCell(row, booking.phone);
     appendBookingLocationCell(row, booking);
     appendAppointmentCell(row, booking);
-    appendCell(row, getBookingStatusText(booking));
+    appendBookingStatusCell(row, booking);
     const actionsCell = document.createElement("td");
     const actions = document.createElement("div");
     actions.className = "table-actions";
@@ -2202,8 +2259,8 @@ function renderReceiptBooking(booking) {
   });
 
   const note = document.createElement("p");
-  note.className = "receipt-note";
-  note.textContent = "بعد التحويل وإرسال إيصال تحويل على الواتساب يرجى الضغط على الزر أدناه";
+  note.className = "receipt-note receipt-action-warning";
+  note.textContent = "تنبيه: لا تضغط على زر إرسال واتساب إلا بعد إتمام التحويل فعليًا والاحتفاظ بإيصال التحويل لإرساله عبر واتساب.";
 
   const sendLink = document.createElement("a");
   sendLink.className = "whatsapp-button receipt-whatsapp";

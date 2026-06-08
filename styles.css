@@ -638,6 +638,11 @@ select:focus {
   outline: 3px solid rgba(155, 131, 0, 0.18);
 }
 
+.inline-receipt-button {
+  width: min(360px, 100%);
+  justify-self: start;
+}
+
 .payment-text p {
   margin: 0 0 4px;
 }
@@ -1356,6 +1361,76 @@ button.package-card {
   filter: brightness(0.96);
 }
 
+.booking-status-cell {
+  min-width: 285px;
+  white-space: normal !important;
+}
+
+.booking-status-card {
+  display: grid;
+  gap: 6px;
+  min-width: 260px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.booking-status-stage {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: var(--gray);
+  color: var(--muted);
+}
+
+.booking-status-stage.current {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.booking-status-stage.completed {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.booking-status-stage.completed.current {
+  border: 1px solid rgba(23, 107, 19, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(23, 107, 19, 0.1);
+}
+
+.booking-status-stage.upcoming {
+  opacity: 0.62;
+}
+
+.booking-status-marker {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.booking-status-stage.completed .booking-status-marker {
+  border-color: var(--success);
+  background: var(--success);
+  color: #fff;
+}
+
+.booking-status-label {
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
 tr:has(.appointment-cell) td {
   transition: opacity 0.15s ease, filter 0.15s ease;
 }
@@ -1489,6 +1564,15 @@ tr:has(.appointment-cell) td {
   margin: 0;
   font-weight: 800;
   color: var(--primary-dark);
+}
+
+.receipt-action-warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 35, 24, 0.35);
+  border-radius: 6px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  line-height: 1.8;
 }
 
 .receipt-whatsapp {
