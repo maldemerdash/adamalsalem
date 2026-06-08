@@ -57,7 +57,7 @@ const MESSAGES = {
 
     return [
       boldName ? `مرحبًا ${boldName}` : "مرحبًا",
-      whatsappBold("تم تأكيد موعدك بنجاح."),
+      whatsappBold(`تم تأكيد موعدك للحجز رقم ${booking.booking_number} بنجاح.`),
       `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
       `الساعة: ${boldTime}`,
       booking.home_session ? "نوع الموعد: زيارة منزلية" : null,
