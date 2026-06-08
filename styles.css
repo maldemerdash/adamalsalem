@@ -38,6 +38,21 @@ select {
   margin: 24px auto;
 }
 
+.site-hero {
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.site-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .topbar {
   display: grid;
   direction: ltr;
