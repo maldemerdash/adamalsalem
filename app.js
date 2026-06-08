@@ -6,6 +6,7 @@ const INTERNAL_START_HOUR = 17;
 const INTERNAL_LAST_SLOT_MINUTES = 21 * 60 + 30;
 const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
 const RECEIPT_WHATSAPP_PHONE = "966555707854";
+const BANK_ACCOUNT_NUMBER = "SA4480000456608016164286";
 const HAIL_COORDINATES = { lat: 27.5114, lng: 41.7208 };
 const HAIL_HOME_VISIT_RADIUS_KM = 30;
 const INTERNAL_WORK_DAYS = [
@@ -32,6 +33,7 @@ const MESSAGES = {
         `المنطقة: ${booking.region || booking.city}`,
         `المدينة: ${booking.visit_city || "-"}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`,
+        "تم استلام مبلغ الزيارة بنجاح.",
         "أيام الباقة:",
         formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date),
         booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
@@ -825,6 +827,24 @@ function getWhatsappUrl(booking) {
   return `https://wa.me/${phone}?text=${message}`;
 }
 
+function getExternalApprovalWhatsappUrl(booking) {
+  const phone = toWhatsappPhone(booking.phone);
+  const message = encodeURIComponent([
+    booking.name ? `مرحبًا ${whatsappBold(booking.name)}` : "مرحبًا",
+    "تمت الموافقة على طلب باقة الزيارة خارج مدينة حائل.",
+    `المنطقة: ${booking.region || booking.city}`,
+    `المدينة: ${booking.visit_city || "-"}`,
+    "أيام الباقة:",
+    formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date),
+    booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
+    booking.alternate_phone ? `رقم التواصل عند الوصول: ${booking.alternate_phone}` : null,
+    `يرجى تحويل مبلغ ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)} على رقم الحساب التالي:`,
+    whatsappBold(BANK_ACCOUNT_NUMBER),
+    "بعد التحويل، أرسل الإيصال عبر واتساب ثم اضغط في الموقع على زر إرفاق إيصال التحويل."
+  ].filter(Boolean).join("\n"));
+  return `https://wa.me/${phone}?text=${message}`;
+}
+
 function getReceiptWhatsappUrl(booking) {
   const isExternal = isExternalBookingType(booking.booking_type);
   const isPackage = isMultiDayBookingType(booking.booking_type, booking);
@@ -1531,34 +1551,11 @@ function renderBookingNumber(bookingNumber) {
   bookingNumberDisplay.append(number, note);
 }
 
-function saveBookingConfirmation(result) {
-  localStorage.setItem(BOOKING_CONFIRMATION_STORAGE_KEY, JSON.stringify({
-    saved_at: Date.now(),
-    result
-  }));
+function clearBookingConfirmation() {
+  localStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
   sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
-}
-
-function restoreBookingConfirmation() {
-  try {
-    const storedValue = localStorage.getItem(BOOKING_CONFIRMATION_STORAGE_KEY)
-      || sessionStorage.getItem(BOOKING_CONFIRMATION_STORAGE_KEY);
-    const saved = JSON.parse(storedValue);
-    if (!saved?.result || Date.now() - Number(saved.saved_at || 0) > 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
-      sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
-      return false;
-    }
-    localStorage.setItem(BOOKING_CONFIRMATION_STORAGE_KEY, JSON.stringify(saved));
-    sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
-    renderBookingNumber(saved.result.booking_number);
-    showBookingConfirmation(saved.result);
-    return true;
-  } catch {
-    localStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
-    sessionStorage.removeItem(BOOKING_CONFIRMATION_STORAGE_KEY);
-    return false;
-  }
+  renderBookingNumber(null);
+  showMessage(bookingMessage, "", "");
 }
 
 function setBusy(form, isBusy) {
@@ -1574,11 +1571,10 @@ function showPanel(name) {
   receiptButton.classList.toggle("hidden", isAdminPanel);
   recoveryButton.classList.toggle("hidden", isAdminPanel);
   if (isAdminPanel) {
+    clearBookingConfirmation();
     receiptPanel.classList.add("hidden");
     recoveryPanel.classList.add("hidden");
     if (isAdmin) handleAdminActivity();
-  } else {
-    restoreBookingConfirmation();
   }
 }
 
@@ -1941,26 +1937,53 @@ function appendBookingStatusCell(row, booking) {
   cell.className = "booking-status-cell";
   const card = document.createElement("div");
   card.className = "booking-status-card";
+  const isExternal = isExternalBookingType(booking.booking_type);
   const expiresAt = booking.expires_at ? new Date(booking.expires_at) : null;
-  const currentStage = booking.attended
-    ? 3
-    : booking.confirmed
-      ? 2
-      : booking.receipt_sent
-        ? 1
-        : 0;
-  const completedStages = [
-    Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
-    Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
-    Boolean(booking.confirmed || booking.attended),
-    Boolean(booking.attended)
-  ];
-  const stages = [
-    expiresAt ? `بانتظار التحويل حتى ${formatTimeFromDate(expiresAt)}` : "بانتظار التحويل",
-    "تم إرفاق الإيصال - بانتظار تأكيد المدير",
-    "تم تأكيد الموعد",
-    "تم الحضور وإتمام الجلسة"
-  ];
+  const currentStage = isExternal
+    ? booking.attended
+      ? 4
+      : booking.confirmed
+        ? 3
+        : booking.receipt_sent
+          ? 2
+          : booking.manager_approved
+            ? 1
+            : 0
+    : booking.attended
+      ? 3
+      : booking.confirmed
+        ? 2
+        : booking.receipt_sent
+          ? 1
+          : 0;
+  const completedStages = isExternal
+    ? [
+        Boolean(booking.manager_approved || booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.confirmed || booking.attended),
+        Boolean(booking.attended)
+      ]
+    : [
+        Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.receipt_sent || booking.confirmed || booking.attended),
+        Boolean(booking.confirmed || booking.attended),
+        Boolean(booking.attended)
+      ];
+  const stages = isExternal
+    ? [
+        "بانتظار مراجعة المدير",
+        "تمت الموافقة على الموعد - بانتظار التحويل وإرفاق الإيصال",
+        "تم إرفاق الإيصال - بانتظار تأكيد المدير",
+        "تم تأكيد الموعد واستلام المبلغ",
+        "تم الحضور وإتمام الجلسة"
+      ]
+    : [
+        expiresAt ? `بانتظار التحويل حتى ${formatTimeFromDate(expiresAt)}` : "بانتظار التحويل",
+        "تم إرفاق الإيصال - بانتظار تأكيد المدير",
+        "تم تأكيد الموعد",
+        "تم الحضور وإتمام الجلسة"
+      ];
 
   stages.forEach((label, index) => {
     const stage = document.createElement("div");
@@ -2161,8 +2184,15 @@ function renderBookingsTable() {
     actions.className = "table-actions";
     actionsCell.append(actions);
     row.append(actionsCell);
+    const isExternal = isExternalBookingType(booking.booking_type);
     if (booking.attended) {
       appendIconButton(actions, "danger-button", "حذف الجلسة التي تمت", ICONS.trash, () => deleteCompletedBooking(booking.id));
+    } else if (isExternal && !booking.manager_approved) {
+      appendIconButton(actions, "confirm-button", "الموافقة على طلب الموعد", ICONS.confirm, () => approveExternalBooking(booking));
+    } else if (isExternal && !booking.receipt_sent) {
+      appendIconLink(actions, "whatsapp-button", "إعادة إرسال تفاصيل التحويل", ICONS.whatsapp, getExternalApprovalWhatsappUrl(booking));
+    } else if (isExternal && !booking.confirmed) {
+      appendIconButton(actions, "confirm-button", "تأكيد استلام الإيصال", ICONS.confirm, () => confirmExternalReceipt(booking));
     } else if (!booking.confirmed) {
       appendIconButton(actions, "confirm-button", "تأكيد الحجز", ICONS.confirm, () => confirmBooking(booking.id));
     } else {
@@ -2260,6 +2290,12 @@ function renderReceiptBooking(booking) {
 
   const note = document.createElement("p");
   note.className = "receipt-note receipt-action-warning";
+  if (isExternalBookingType(booking.booking_type) && !booking.manager_approved) {
+    note.textContent = "طلب الزيارة الخارجية بانتظار مراجعة المدير. لا يتم التحويل أو إرسال الإيصال إلا بعد موافقة المدير ووصول رسالة تفاصيل التحويل.";
+    card.append(table, note);
+    receiptResult.append(card);
+    return;
+  }
   note.textContent = "تنبيه: لا تضغط على زر إرسال واتساب إلا بعد إتمام التحويل فعليًا والاحتفاظ بإيصال التحويل لإرساله عبر واتساب.";
 
   const sendLink = document.createElement("a");
@@ -2275,7 +2311,7 @@ function renderReceiptBooking(booking) {
       const marked = await markReceiptSent(booking.phone, booking.booking_number);
       if (!marked && !booking.confirmed) {
         whatsappWindow?.close();
-        showMessage(receiptMessage, "انتهت مهلة الحجز أو لم يعد الحجز متاحًا.", "error");
+        showMessage(receiptMessage, "لم يعد الحجز متاحًا لإرفاق الإيصال، أو لم تتم الموافقة على طلب الزيارة الخارجية بعد.", "error");
         return;
       }
       if (whatsappWindow) {
@@ -2471,6 +2507,54 @@ async function confirmBooking(bookingId) {
   await refreshAll();
 }
 
+async function approveExternalBooking(booking) {
+  const whatsappWindow = window.open("about:blank", "_blank");
+  try {
+    const approvedAt = new Date().toISOString();
+    await api(`appointment_bookings?id=eq.${booking.id}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: { manager_approved: true, manager_approved_at: approvedAt }
+    });
+    const url = getExternalApprovalWhatsappUrl({ ...booking, manager_approved: true, manager_approved_at: approvedAt });
+    if (whatsappWindow) {
+      whatsappWindow.opener = null;
+      whatsappWindow.location.href = url;
+    } else {
+      openExternalMessage(url);
+    }
+    showToast("تمت الموافقة على طلب الموعد. أرسل للعميل تفاصيل التحويل عبر واتساب.");
+    await refreshAll();
+  } catch (error) {
+    whatsappWindow?.close();
+    showToast(`تعذر اعتماد الطلب: ${error.message}`);
+  }
+}
+
+async function confirmExternalReceipt(booking) {
+  const whatsappWindow = window.open("about:blank", "_blank");
+  try {
+    const confirmedAt = new Date().toISOString();
+    await api(`appointment_bookings?id=eq.${booking.id}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: { confirmed: true, confirmed_at: confirmedAt }
+    });
+    const url = getWhatsappUrl({ ...booking, confirmed: true, confirmed_at: confirmedAt });
+    if (whatsappWindow) {
+      whatsappWindow.opener = null;
+      whatsappWindow.location.href = url;
+    } else {
+      openExternalMessage(url);
+    }
+    showToast("تم تأكيد استلام الإيصال والمبلغ وتأكيد الموعد.");
+    await refreshAll();
+  } catch (error) {
+    whatsappWindow?.close();
+    showToast(`تعذر تأكيد استلام الإيصال: ${error.message}`);
+  }
+}
+
 async function markAttended(bookingId) {
   await api(`appointment_bookings?id=eq.${bookingId}`, {
     method: "PATCH",
@@ -2522,10 +2606,7 @@ async function deleteCompletedBooking(bookingId) {
 }
 
 adminLoginButton.addEventListener("click", () => showPanel("admin"));
-backToBookingButton.addEventListener("click", () => {
-  showPanel("booking");
-  restoreBookingConfirmation();
-});
+backToBookingButton.addEventListener("click", () => showPanel("booking"));
 regenerateSlotsButton.addEventListener("click", regenerateWeeklySlots);
 suspendWeekButton.addEventListener("click", toggleCurrentWeekSuspension);
 receiptButton.addEventListener("click", () => {
@@ -3138,7 +3219,6 @@ bookingForm.addEventListener("submit", async (event) => {
     slotSelect.value = "";
     const bookingResult = { ...(created?.[0] || {}), name };
     const bookingNumber = bookingResult.booking_number || "";
-    saveBookingConfirmation(bookingResult);
     renderBookingNumber(bookingNumber);
     showBookingConfirmation(bookingResult);
     await refreshAll();
@@ -3166,6 +3246,7 @@ bookingForm.addEventListener("submit", async (event) => {
 
 async function boot() {
   try {
+    clearBookingConfirmation();
     showMessage(bookingMessage, "جاري تحميل المواعيد...", "success");
     const recoverySession = getRecoverySessionFromUrl();
     const authCallbackError = getAuthCallbackErrorFromUrl();
@@ -3197,9 +3278,7 @@ async function boot() {
     }
     await loadVisitCities();
     await refreshAll();
-    if (!restoreBookingConfirmation()) {
-      showMessage(bookingMessage, "", "");
-    }
+    showMessage(bookingMessage, "", "");
   } catch (error) {
     showMessage(bookingMessage, "لم يتم الاتصال بقاعدة البيانات. شغّل ملف إعداد Supabase المحدث أولًا.", "error");
     console.error(error);
