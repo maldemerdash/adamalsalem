@@ -178,6 +178,35 @@ const ADMIN_LAST_ACTIVITY_KEY = "appointmentAdminLastActivity";
 const ADMIN_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 let adminIdleCheckTimer = null;
 
+function getArabicAuthError(error, context = "login") {
+  const message = String(error?.message || error || "").trim();
+
+  if (/invalid login credentials|invalid credentials|email or password/i.test(message)) {
+    return context === "current-password"
+      ? "كلمة المرور الحالية غير صحيحة."
+      : "البريد الإلكتروني أو كلمة المرور غير صحيحة. تأكد من بيانات المستخدم المسجل في Supabase.";
+  }
+  if (/email not confirmed/i.test(message)) {
+    return "البريد الإلكتروني غير مؤكد. افتح رسالة التأكيد أو أكّد المستخدم من Supabase.";
+  }
+  if (/user not found/i.test(message)) {
+    return "لا يوجد مستخدم مسجل بهذا البريد الإلكتروني.";
+  }
+  if (/email.*already|already.*registered|user already registered/i.test(message)) {
+    return "البريد الإلكتروني الجديد مستخدم في حساب آخر.";
+  }
+  if (/password.*short|weak password|at least/i.test(message)) {
+    return "كلمة المرور الجديدة ضعيفة أو قصيرة. استخدم 8 أحرف على الأقل.";
+  }
+  if (/rate limit|too many requests/i.test(message)) {
+    return "تمت محاولات كثيرة خلال وقت قصير. انتظر قليلًا ثم حاول مرة أخرى.";
+  }
+
+  return message || (context === "login"
+    ? "تعذر تسجيل الدخول."
+    : "تعذر تحديث بيانات الحساب.");
+}
+
 async function api(path, options = {}) {
   const accessToken = authSession?.access_token || SUPABASE_KEY;
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -2402,7 +2431,7 @@ adminLoginForm.addEventListener("submit", async (event) => {
   } catch (error) {
     saveAuthSession(null);
     isAdmin = false;
-    showMessage(loginMessage, error.message || "البريد الإلكتروني أو كلمة المرور غير صحيحة.", "error");
+    showMessage(loginMessage, getArabicAuthError(error, "login"), "error");
     renderAll();
   } finally {
     setBusy(adminLoginForm, false);
@@ -2475,10 +2504,7 @@ accountSecurityForm.addEventListener("submit", async (event) => {
 
     await performLogout({ accountChanged: true });
   } catch (error) {
-    const message = /invalid login|invalid credentials/i.test(error.message)
-      ? "كلمة المرور الحالية غير صحيحة."
-      : error.message;
-    showMessage(accountSecurityMessage, message, "error");
+    showMessage(accountSecurityMessage, getArabicAuthError(error, "current-password"), "error");
   } finally {
     setBusy(accountSecurityForm, false);
   }
@@ -2640,6 +2666,19 @@ async function boot() {
 
 ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => {
   document.addEventListener(eventName, markAdminActivity, { passive: true });
+});
+
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = document.getElementById(button.dataset.passwordToggle);
+    if (!input) return;
+
+    const shouldShow = input.type === "password";
+    input.type = shouldShow ? "text" : "password";
+    button.setAttribute("aria-pressed", String(shouldShow));
+    button.setAttribute("aria-label", shouldShow ? "إخفاء كلمة المرور" : "إظهار كلمة المرور");
+    input.focus();
+  });
 });
 
 boot();
