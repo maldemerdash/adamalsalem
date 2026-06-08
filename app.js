@@ -2618,7 +2618,7 @@ function renderTrackingBooking(booking) {
 }
 
 async function trackBooking(phone) {
-  const rows = await api("rpc/track_appointment_booking", {
+  const rows = await api("rpc/track_appointment_booking_by_phone", {
     method: "POST",
     body: { p_phone: phone }
   });
@@ -3225,7 +3225,14 @@ trackingForm.addEventListener("submit", async (event) => {
 
     renderTrackingBooking(booking);
   } catch (error) {
-    showMessage(trackingMessage, `تعذر متابعة الحجز: ${error.message}`, "error");
+    const isMissingTrackingFunction = /PGRST202|track_appointment_booking/i.test(error.message);
+    showMessage(
+      trackingMessage,
+      isMissingTrackingFunction
+        ? "خدمة متابعة الحجز تحتاج إلى تفعيل ملف Supabase SQL المحدث."
+        : `تعذر متابعة الحجز: ${error.message}`,
+      "error"
+    );
   } finally {
     setBusy(trackingForm, false);
   }
