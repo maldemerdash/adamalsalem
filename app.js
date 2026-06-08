@@ -895,6 +895,25 @@ function getSelectedVisitCity() {
   };
 }
 
+function getRiyadhDateTimeParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Riyadh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+}
+
+function addDaysToDateKey(dateKey, days) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function getCurrentBookingType() {
   if (locationTypeInput.value === "external") {
     return specialAppointmentInput.checked ? "special_external_package" : "external";
@@ -1063,6 +1082,14 @@ function getAvailableSlots() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const selectedType = getCurrentBookingType();
+  const selectedVisitCity = getSelectedVisitCity();
+  const isNearExternalVisit = Number(selectedVisitCity?.distance_km) <= 100;
+  const riyadhNow = getRiyadhDateTimeParts(now);
+  const riyadhTodayKey = `${riyadhNow.year}-${riyadhNow.month}-${riyadhNow.day}`;
+  const nearVisitTodayCutoff = new Date(`${riyadhTodayKey}T06:00:00+03:00`);
+  const nearPackageMinimumDateKey = now <= nearVisitTodayCutoff
+    ? riyadhTodayKey
+    : addDaysToDateKey(riyadhTodayKey, 1);
   const specialPackageMinimumStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
@@ -1073,7 +1100,11 @@ function getAvailableSlots() {
     .filter((slot) => slot.slot_type === selectedType)
     .filter((slot) => (
       slot.slot_type !== "special_external_package"
-      || new Date(`${slot.date}T08:00:00+03:00`) >= specialPackageMinimumStart
+      || (
+        isNearExternalVisit
+          ? slot.date >= nearPackageMinimumDateKey
+          : new Date(`${slot.date}T08:00:00+03:00`) >= specialPackageMinimumStart
+      )
     ))
     .filter((slot) => !isExternalBookingType(slot.slot_type) || isThreeDayExternalPackage(slot))
     .filter((slot) => !getReservedSlots().some((booking) => bookingConflictsWithSlot(booking, slot)))
@@ -2256,7 +2287,10 @@ function updateSpecialAppointmentControls() {
 
   const note = document.querySelector(".slots-note");
   if (specialAppointmentInput.checked && isExternal) {
-    note.textContent = "تبدأ باقات الموعد الخاص بعد 24 ساعة على الأقل. يتم حجز اليوم المختار واليومين التاليين بالكامل.";
+    const selectedVisitCity = getSelectedVisitCity();
+    note.textContent = Number(selectedVisitCity?.distance_km) <= 100
+      ? "اختر بداية الموعد الخاص المناسبة. يتم حجز اليوم المختار واليومين التاليين بالكامل."
+      : "تبدأ باقات الموعد الخاص بعد 24 ساعة على الأقل. يتم حجز اليوم المختار واليومين التاليين بالكامل.";
   } else if (isExternal) {
     note.textContent = "اختر باقة الخميس والجمعة والسبت. يتم حجز الأيام الثلاثة بالكامل.";
   } else if (homeSessionInput.checked) {
