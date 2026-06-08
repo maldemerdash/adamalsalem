@@ -1193,6 +1193,82 @@ button.package-card {
   white-space: nowrap;
 }
 
+.booking-location-cell {
+  min-width: 230px;
+  white-space: normal !important;
+}
+
+.booking-location-card {
+  display: grid;
+  gap: 8px;
+  min-width: 210px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.booking-location-heading {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.booking-location-city {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.booking-location-details {
+  display: grid;
+  gap: 5px;
+}
+
+.booking-location-details > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: var(--gray);
+}
+
+.booking-location-details span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.booking-location-details strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.booking-location-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid rgba(15, 118, 110, 0.24);
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.booking-location-link:hover,
+.booking-location-link:focus-visible {
+  filter: brightness(0.96);
+}
+
 tr:has(.appointment-cell) td {
   transition: opacity 0.15s ease, filter 0.15s ease;
 }

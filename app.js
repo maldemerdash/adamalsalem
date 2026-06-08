@@ -1656,6 +1656,70 @@ function appendCell(row, value) {
   return cell;
 }
 
+function appendBookingLocationCell(row, booking) {
+  const cell = document.createElement("td");
+  cell.className = "booking-location-cell";
+  const card = document.createElement("div");
+  card.className = "booking-location-card";
+
+  const heading = document.createElement("strong");
+  heading.className = "booking-location-heading";
+  heading.textContent = booking.region || booking.city || "مدينة حائل";
+  card.append(heading);
+
+  if (booking.visit_city) {
+    const city = document.createElement("span");
+    city.className = "booking-location-city";
+    city.textContent = booking.visit_city;
+    card.append(city);
+  }
+
+  const details = [
+    booking.visit_distance_km
+      ? ["المسافة ذهابًا", `${booking.visit_distance_km} كم`]
+      : null,
+    booking.visit_price
+      ? ["قيمة الزيارة", `${formatPrice(booking.visit_price)} ريال`]
+      : null,
+    booking.home_session
+      ? ["نوع الموعد", "زيارة منزلية"]
+      : null,
+    booking.alternate_phone
+      ? ["رقم إضافي", booking.alternate_phone]
+      : null
+  ].filter(Boolean);
+
+  if (details.length) {
+    const detailsList = document.createElement("div");
+    detailsList.className = "booking-location-details";
+    details.forEach(([label, value]) => {
+      const detail = document.createElement("div");
+      const detailLabel = document.createElement("span");
+      detailLabel.textContent = label;
+      const detailValue = document.createElement("strong");
+      detailValue.textContent = value;
+      detail.append(detailLabel, detailValue);
+      detailsList.append(detail);
+    });
+    card.append(detailsList);
+  }
+
+  if (booking.customer_location_url) {
+    const locationLink = document.createElement("a");
+    locationLink.className = "booking-location-link";
+    locationLink.href = booking.customer_location_url;
+    locationLink.target = "_blank";
+    locationLink.rel = "noopener noreferrer";
+    locationLink.textContent = "فتح موقع الزيارة";
+    locationLink.setAttribute("aria-label", "فتح موقع الزيارة في خرائط Google");
+    card.append(locationLink);
+  }
+
+  cell.append(card);
+  row.append(cell);
+  return cell;
+}
+
 function appendAppointmentCell(row, booking) {
   const cell = document.createElement("td");
   cell.className = "appointment-cell";
@@ -1878,18 +1942,7 @@ function renderBookingsTable() {
     appendCell(row, booking.name || "غير مسجل");
     appendCell(row, booking.booking_number || "-");
     appendCell(row, booking.phone);
-    appendCell(
-      row,
-      [
-        booking.region || booking.city || "غير محدد",
-        booking.visit_city || null,
-        booking.visit_distance_km ? `المسافة ذهابًا: ${booking.visit_distance_km} كم` : null,
-        booking.visit_price ? `قيمة الزيارة: ${formatPrice(booking.visit_price)} ريال` : null,
-        booking.home_session ? "زيارة منزلية" : null,
-        booking.customer_location_url ? `الموقع: ${booking.customer_location_url}` : null,
-        booking.alternate_phone ? `رقم إضافي: ${booking.alternate_phone}` : null
-      ].filter(Boolean).join("\n")
-    );
+    appendBookingLocationCell(row, booking);
     appendAppointmentCell(row, booking);
     appendCell(row, getBookingStatusText(booking));
     const actionsCell = document.createElement("td");
