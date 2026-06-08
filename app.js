@@ -29,11 +29,11 @@ const MESSAGES = {
     if (isExternalBookingType(booking.booking_type)) {
       return [
         boldName ? `مرحبًا ${boldName}` : "مرحبًا",
-        "تم تأكيد باقة الزيارة خارج مدينة حائل.",
+        whatsappBold("تم تأكيد باقة الزيارة خارج مدينة حائل."),
         `المنطقة: ${booking.region || booking.city}`,
         `المدينة: ${booking.visit_city || "-"}`,
         `قيمة الزيارة: ${whatsappBold(`${formatPrice(booking.visit_price)} ريال`)}`,
-        "تم استلام مبلغ الزيارة بنجاح.",
+        whatsappBold("تم استلام مبلغ الزيارة بنجاح."),
         "أيام الباقة:",
         formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date),
         booking.customer_location_url ? `موقع الزيارة: ${booking.customer_location_url}` : null,
@@ -44,7 +44,7 @@ const MESSAGES = {
     if (isHomeBookingType(booking.booking_type)) {
       return [
         boldName ? `مرحبًا ${boldName}` : "مرحبًا",
-        "تم تأكيد الزيارة المنزلية داخل مدينة حائل.",
+        whatsappBold("تم تأكيد الزيارة المنزلية داخل مدينة حائل."),
         `الزيارة: ${whatsappBold(booking.appointment_title || booking.slot.title || "زيارة منزلية")}`,
         `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
         `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)} إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}`)}`,
@@ -55,7 +55,7 @@ const MESSAGES = {
 
     return [
       boldName ? `مرحبًا ${boldName}` : "مرحبًا",
-      "تم تأكيد موعدك بنجاح.",
+      whatsappBold("تم تأكيد موعدك بنجاح."),
       `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
       `الساعة: ${boldTime}`,
       booking.home_session ? "نوع الموعد: زيارة منزلية" : null,
@@ -831,7 +831,7 @@ function getExternalApprovalWhatsappUrl(booking) {
   const phone = toWhatsappPhone(booking.phone);
   const message = encodeURIComponent([
     booking.name ? `مرحبًا ${whatsappBold(booking.name)}` : "مرحبًا",
-    "تمت الموافقة على طلب باقة الزيارة خارج مدينة حائل.",
+    whatsappBold("تمت الموافقة على طلب باقة الزيارة خارج مدينة حائل."),
     `المنطقة: ${booking.region || booking.city}`,
     `المدينة: ${booking.visit_city || "-"}`,
     "أيام الباقة:",
@@ -849,7 +849,7 @@ function getReceiptWhatsappUrl(booking) {
   const isExternal = isExternalBookingType(booking.booking_type);
   const isPackage = isMultiDayBookingType(booking.booking_type, booking);
   const message = encodeURIComponent([
-    `تم إرفاق إيصال للموعد رقم ${booking.booking_number}`,
+    whatsappBold(`تم إرفاق إيصال للموعد رقم ${booking.booking_number}`),
     booking.name ? `باسم ${whatsappBold(booking.name)}` : null,
     isPackage
       ? `أيام الباقة:\n${formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date)}`
