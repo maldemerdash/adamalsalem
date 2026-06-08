@@ -822,13 +822,13 @@ function getReceiptWhatsappUrl(booking) {
   const isPackage = isMultiDayBookingType(booking.booking_type, booking);
   const message = encodeURIComponent([
     `تم إرفاق إيصال للموعد رقم ${booking.booking_number}`,
-    booking.name ? `باسم ${booking.name}` : null,
+    booking.name ? `باسم ${whatsappBold(booking.name)}` : null,
     isPackage
-      ? `الباقة: ${formatDateRange(booking.booking_start_date, booking.booking_end_date)}`
-      : `اليوم والتاريخ: ${booking.slot.day} ${formatCombinedDate(booking.slot.date)}`,
+      ? `أيام الباقة:\n${formatWhatsappPackageDays(booking.booking_start_date, booking.booking_end_date)}`
+      : `اليوم والتاريخ: ${formatWhatsappDayDate(booking.slot.date)}`,
     isExternal || isPackage
       ? null
-      : `الوقت: ${formatTime(booking.appointment_start_time || booking.slot.time)}${booking.appointment_end_time || booking.slot.end_time ? ` إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}` : ""}`
+      : `الوقت: ${whatsappBold(`${formatTime(booking.appointment_start_time || booking.slot.time)}${booking.appointment_end_time || booking.slot.end_time ? ` إلى ${formatTime(booking.appointment_end_time || booking.slot.end_time)}` : ""}`)}`
   ].filter(Boolean).join("\n"));
   return `https://wa.me/${RECEIPT_WHATSAPP_PHONE}?text=${message}`;
 }
@@ -838,7 +838,8 @@ function getExternalBookingWhatsappUrl(result) {
     `رقم الحجز: ${result.booking_number}`,
     result.name ? `الاسم: ${whatsappBold(result.name)}` : null,
     `تم اختيار باقة زيارة خارج مدينة حائل في ${result.visit_city} - ${result.region}`,
-    `الباقة: ${formatDateRange(result.booking_start_date, result.booking_end_date)}`,
+    "أيام الباقة:",
+    formatWhatsappPackageDays(result.booking_start_date, result.booking_end_date),
     `قيمة الزيارة: ${whatsappBold(`${formatPrice(result.visit_price)} ريال`)}`,
     result.customer_location_url ? `موقع الزيارة: ${result.customer_location_url}` : null,
     result.alternate_phone ? `رقم التواصل عند الوصول: ${result.alternate_phone}` : null,
