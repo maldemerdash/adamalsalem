@@ -2370,12 +2370,12 @@ function renderReceiptBooking(booking) {
   receiptResult.append(card);
 }
 
-async function lookupReceiptBooking(phone, bookingNumber) {
+async function lookupReceiptBooking(phone) {
   const rows = await api("rpc/lookup_appointment_booking", {
     method: "POST",
     body: {
       p_phone: phone,
-      p_booking_number: bookingNumber
+      p_booking_number: ""
     }
   });
   const row = rows?.[0];
@@ -2404,10 +2404,10 @@ async function markReceiptSent(phone, bookingNumber) {
   });
 }
 
-async function recoverBookingNumber(phone, name) {
+async function recoverBookingNumber(phone) {
   const rows = await api("rpc/recover_appointment_booking_number", {
     method: "POST",
-    body: { p_phone: phone, p_name: name }
+    body: { p_phone: phone }
   });
   return rows?.[0] || null;
 }
@@ -2617,10 +2617,10 @@ function renderTrackingBooking(booking) {
   trackingResult.append(card);
 }
 
-async function trackBooking(phone, bookingNumber) {
+async function trackBooking(phone) {
   const rows = await api("rpc/track_appointment_booking_by_phone", {
     method: "POST",
-    body: { p_phone: phone, p_booking_number: bookingNumber }
+    body: { p_phone: phone }
   });
   return rows?.[0] || null;
 }
@@ -3157,16 +3157,11 @@ receiptLookupForm.addEventListener("submit", async (event) => {
 
   try {
     const phone = document.querySelector("#receiptPhoneInput").value.trim();
-    const bookingNumber = document.querySelector("#receiptBookingNumberInput").value.trim();
     if (!/^05\d{8}$/.test(phone)) {
       showMessage(receiptMessage, "رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05.", "error");
       return;
     }
-    if (!bookingNumber) {
-      showMessage(receiptMessage, "يرجى إدخال رقم الحجز.", "error");
-      return;
-    }
-    const booking = await lookupReceiptBooking(phone, bookingNumber);
+    const booking = await lookupReceiptBooking(phone);
 
     if (!booking) {
       receiptResult.innerHTML = "";
@@ -3189,17 +3184,12 @@ recoveryForm.addEventListener("submit", async (event) => {
 
   try {
     const phone = document.querySelector("#recoveryPhoneInput").value.trim();
-    const name = document.querySelector("#recoveryNameInput").value.trim();
     if (!/^05\d{8}$/.test(phone)) {
       showMessage(recoveryMessage, "رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05.", "error");
       return;
     }
-    if (!name) {
-      showMessage(recoveryMessage, "يرجى إدخال الاسم المسجل.", "error");
-      return;
-    }
 
-    const booking = await recoverBookingNumber(phone, name);
+    const booking = await recoverBookingNumber(phone);
     if (!booking) {
       showMessage(recoveryMessage, "لم يتم العثور على حجز مسجل بهذا الرقم.", "error");
       return;
@@ -3222,17 +3212,12 @@ trackingForm.addEventListener("submit", async (event) => {
 
   try {
     const phone = document.querySelector("#trackingPhoneInput").value.trim();
-    const bookingNumber = document.querySelector("#trackingBookingNumberInput").value.trim();
     if (!/^05\d{8}$/.test(phone)) {
       showMessage(trackingMessage, "رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05.", "error");
       return;
     }
-    if (!bookingNumber) {
-      showMessage(trackingMessage, "يرجى إدخال رقم الحجز.", "error");
-      return;
-    }
 
-    const booking = await trackBooking(phone, bookingNumber);
+    const booking = await trackBooking(phone);
     if (!booking) {
       showMessage(trackingMessage, "لم يتم العثور على حجز مسجل بهذا الجوال.", "error");
       return;

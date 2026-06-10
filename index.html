@@ -41,7 +41,7 @@
             <div class="list-head">
               <div>
                 <h2>إرفاق إيصال التحويل</h2>
-                <p>أدخل رقم الجوال ورقم الحجز لاسترجاع طلب الموعد وإرفاق الإيصال.</p>
+                <p>أدخل رقم الجوال المسجل لاسترجاع طلب الموعد وإرفاق الإيصال.</p>
               </div>
               <button id="closeReceiptButton" class="outline-action icon-action" type="button" title="إغلاق" aria-label="إغلاق">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -53,10 +53,6 @@
               <label>
                 <span>رقم الجوال</span>
                 <input id="receiptPhoneInput" type="tel" required placeholder="05xxxxxxxx" />
-              </label>
-              <label>
-                <span>رقم الحجز</span>
-                <input id="receiptBookingNumberInput" type="text" inputmode="numeric" required placeholder="مثال: 123456" />
               </label>
               <button class="secondary-action" type="submit">عرض طلب الموعد</button>
             </form>
@@ -70,7 +66,7 @@
             <div class="list-head">
               <div>
                 <h2>استرجاع رقم الحجز</h2>
-                <p>أدخل رقم الجوال والاسم المسجلين للتحقق قبل استرجاع رقم الحجز عبر واتساب.</p>
+                <p>أدخل رقم الجوال المسجل لفتح واتساب برسالة تحتوي على رقم الحجز.</p>
               </div>
               <button id="closeRecoveryButton" class="outline-action icon-action" type="button" title="إغلاق" aria-label="إغلاق">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -83,10 +79,6 @@
                 <span>رقم الجوال</span>
                 <input id="recoveryPhoneInput" type="tel" inputmode="numeric" maxlength="10" required placeholder="05xxxxxxxx" />
               </label>
-              <label>
-                <span>الاسم المسجل</span>
-                <input id="recoveryNameInput" type="text" required placeholder="الاسم كما تم إدخاله" />
-              </label>
               <button class="secondary-action" type="submit">استرجاع عبر واتساب</button>
             </form>
             <div id="recoveryMessage" class="message" role="status" aria-live="polite"></div>
@@ -98,7 +90,7 @@
             <div class="list-head">
               <div>
                 <h2>متابعة الحجز</h2>
-                <p>أدخل رقم الجوال ورقم الحجز للاطلاع على بيانات الموعد وحالته الحالية.</p>
+                <p>أدخل رقم الجوال المسجل للاطلاع على بيانات الموعد وحالته الحالية.</p>
               </div>
               <button id="closeTrackingButton" class="outline-action icon-action" type="button" title="إغلاق" aria-label="إغلاق">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -110,10 +102,6 @@
               <label>
                 <span>رقم الجوال</span>
                 <input id="trackingPhoneInput" type="tel" inputmode="numeric" maxlength="10" required placeholder="05xxxxxxxx" />
-              </label>
-              <label>
-                <span>رقم الحجز</span>
-                <input id="trackingBookingNumberInput" type="text" inputmode="numeric" required placeholder="مثال: 123456" />
               </label>
               <button class="secondary-action" type="submit">استعلام</button>
             </form>
