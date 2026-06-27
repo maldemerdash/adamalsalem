@@ -9741,3 +9741,70 @@ document.addEventListener("click", function(event) {
     };
   }
 })();
+
+/* =========================================================
+   Users screen loading safety patch
+   Fixes stuck "جاري التحميل" state after granular permissions update.
+   ========================================================= */
+(function usersLoadingSafetyPatch(){
+  function normalizeRoleSafe(role){ return role === "admin" ? "admin" : "employee"; }
+  function normalizePermsSafe(raw, role){
+    if (typeof normalizePermissions === "function") return normalizePermissions(raw, role);
+    return raw && typeof raw === "object" ? raw : {};
+  }
+  async function safeLoadProfiles(){
+    if (!supabaseClient) throw new Error("Supabase غير متصل");
+    let result = await supabaseClient
+      .from("app_user_profiles")
+      .select("id,user_id,full_name,email,role,is_active,permissions,created_at,updated_at")
+      .order("created_at", { ascending: false });
+    if (result.error && /permissions|column/i.test(String(result.error.message || ""))) {
+      result = await supabaseClient
+        .from("app_user_profiles")
+        .select("id,user_id,full_name,email,role,is_active,created_at,updated_at")
+        .order("created_at", { ascending: false });
+    }
+    if (result.error) throw result.error;
+    appUserProfilesCache = (Array.isArray(result.data) ? result.data : []).map((profile) => ({
+      ...profile,
+      role: normalizeRoleSafe(profile.role),
+      permissions: normalizePermsSafe(profile.permissions, profile.role)
+    }));
+    return appUserProfilesCache;
+  }
+  loadAppUserProfiles = safeLoadProfiles;
+
+  renderUsersManagement = async function renderUsersManagementSafe(){
+    ensureUsersManagementView();
+    const body = document.querySelector("#appUserProfilesBody");
+    if (body) body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>جاري تحميل المستخدمين...</strong><p>يتم قراءة الصلاحيات من Supabase.</p></div></td></tr>`;
+    try {
+      await safeLoadProfiles();
+      if (typeof renderAppUserProfiles === "function") renderAppUserProfiles();
+      if (typeof hydrateIcons === "function") hydrateIcons(document.querySelector("#usersView") || document);
+    } catch (error) {
+      console.error("تعذر تحميل المستخدمين", error);
+      if (body) body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>تعذر تحميل المستخدمين</strong><p>${escapeHtml(error?.message || "خطأ غير معروف")}</p><button type="button" class="secondary-btn" id="retryUsersLoadBtn">إعادة المحاولة</button></div></td></tr>`;
+      if (typeof showToast === "function") showToast("تعذر تحميل المستخدمين: " + String(error?.message || ""));
+    }
+  };
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#retryUsersLoadBtn")) {
+      event.preventDefault();
+      renderUsersManagement();
+    }
+    const navTarget = event.target.closest('[data-view="users"], [data-go-view="users"]');
+    if (navTarget) setTimeout(() => {
+      const body = document.querySelector("#appUserProfilesBody");
+      if (body && /جاري/.test(body.textContent || "")) renderUsersManagement();
+    }, 80);
+  }, true);
+
+  const usersWatchdog = setInterval(() => {
+    const view = document.querySelector("#usersView.active");
+    const body = document.querySelector("#appUserProfilesBody");
+    if (view && body && /جاري/.test(body.textContent || "")) renderUsersManagement();
+  }, 1200);
+  setTimeout(() => clearInterval(usersWatchdog), 30000);
+})();
