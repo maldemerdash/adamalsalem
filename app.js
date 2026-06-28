@@ -2,6 +2,8 @@ const SUPABASE_URL = "https://hdduxbywwxxybsffwxzd.supabase.co";
 const SUPABASE_KEY = "sb_publishable_JJDMqVtKwiBpa2vKMGhdcg_ks7U5Rs-";
 const PASSWORD_RECOVERY_REDIRECT_URL = "https://adamalsalem.vercel.app/";
 const SCHEDULE_VERSION = "weekly-v12";
+const MANAGED_WEEKS_AHEAD = 12;
+const CUSTOMER_FUTURE_SLOT_LIMIT = 8;
 const INTERNAL_START_HOUR = 17;
 const INTERNAL_LAST_SLOT_MINUTES = 21 * 60 + 30;
 const MAP_URL = "https://maps.app.goo.gl/gRuTSJt7Gk24d3RJ7";
@@ -706,15 +708,7 @@ function buildWeeklySlots(weekStart) {
 
 function getManagedWeekStarts() {
   const currentWeekStart = getWeekStart();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const internalEnd = new Date(today);
-  internalEnd.setDate(today.getDate() + 13);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const managedEnd = monthEnd > internalEnd ? monthEnd : internalEnd;
-  const managedEndWeek = getWeekStart(managedEnd);
-  const weekCount = Math.round((managedEndWeek - currentWeekStart) / (7 * 24 * 60 * 60 * 1000)) + 1;
-  return Array.from({ length: weekCount }, (_, weekOffset) => {
+  return Array.from({ length: MANAGED_WEEKS_AHEAD }, (_, weekOffset) => {
     const weekStart = new Date(currentWeekStart);
     weekStart.setDate(currentWeekStart.getDate() + weekOffset * 7);
     return weekStart;
@@ -1148,7 +1142,6 @@ function getAvailableSlots() {
     ? riyadhTodayKey
     : addDaysToDateKey(riyadhTodayKey, 1);
   const specialPackageMinimumStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
   let available = slots
     .filter((slot) => slot.schedule_version === SCHEDULE_VERSION)
@@ -1167,7 +1160,7 @@ function getAvailableSlots() {
     .filter((slot) => !getReservedSlots().some((booking) => bookingConflictsWithSlot(booking, slot)))
     .filter((slot) => {
       const date = new Date(`${slot.date}T00:00:00`);
-      return date >= today && (selectedType === "internal" || date <= monthEnd);
+      return date >= today;
     })
     .filter((slot) => slot.slot_type !== "internal" || !isPrayerBlocked(slot.date, slot.time))
     .filter((slot) => isFullDayBookingType(slot.slot_type) || getSlotDateTime(slot) > now)
@@ -1176,6 +1169,8 @@ function getAvailableSlots() {
   if (selectedType === "internal") {
     const firstFourDates = [...new Set(available.map((slot) => slot.date))].slice(0, 4);
     available = available.filter((slot) => firstFourDates.includes(slot.date));
+  } else {
+    available = available.slice(0, CUSTOMER_FUTURE_SLOT_LIMIT);
   }
   return available;
 }
@@ -1184,7 +1179,6 @@ function getAdminOpenSlots(slotType = null) {
   const now = new Date();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const externalEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const bookedIds = new Set(bookings.map((booking) => booking.slot_id));
   const reserved = getReservedSlots();
   let available = slots
@@ -1195,7 +1189,7 @@ function getAdminOpenSlots(slotType = null) {
     .filter((slot) => !reserved.some((booking) => bookingConflictsWithSlot(booking, slot)))
     .filter((slot) => {
       const slotDate = new Date(`${slot.date}T00:00:00`);
-      return slotDate >= today && (slot.slot_type === "internal" || slotDate <= externalEnd);
+      return slotDate >= today;
     })
     .filter((slot) => slot.slot_type !== "internal" || !isPrayerBlocked(slot.date, slot.time))
     .filter((slot) => isFullDayBookingType(slot.slot_type) || getSlotDateTime(slot) > now)
